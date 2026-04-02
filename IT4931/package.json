@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "binance-api-node": "^0.13.8",
+    "kafkajs": "^2.2.4"
+  }
+}
