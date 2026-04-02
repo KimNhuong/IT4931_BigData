@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Kafka Infrastructure
   zookeeper:
@@ -36,7 +34,7 @@ services:
       - bigdata-network
 
   kafka-ui:
-    image: provectus/kafka-ui:latest
+    image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     depends_on:
       - kafka

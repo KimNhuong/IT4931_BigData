@@ -244,7 +244,7 @@ function Show-Ports {
     Print-Header "Service Access Ports"
     Write-Host ""
     Write-Host "Service                 Port        URL"
-    Write-Host ("─" * 60)
+    Write-Host ("-" * 60)
     Write-Host "Zookeeper              2181        localhost:2181"
     Write-Host "Kafka                  9092        localhost:9092"
     Write-Host "Kafka UI               8080        http://localhost:8080"
