@@ -30,6 +30,12 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_JMX_PORT: 9101
       KAFKA_JMX_HOSTNAME: kafka
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/9092"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     networks:
       - bigdata-network
 
@@ -110,11 +116,15 @@ services:
     build:
       context: ./binance-ingest
       dockerfile: Dockerfile
+      target: development
     container_name: binance-ingest
     depends_on:
-      - kafka
-      - elasticsearch
-      - redis
+      kafka:
+        condition: service_healthy  
+      elasticsearch:
+        condition: service_started
+      redis:
+        condition: service_started
     ports:
       - "3000:3000"
     environment:
@@ -130,6 +140,7 @@ services:
       REDIS_PORT: 6379
       # Binance Configuration
       BINANCE_WS_URL: wss://stream.binance.com:9443/ws
+      BINANCE_BTCUSDT_TICKER: wss://stream.binance.com:9443/ws/btcusdt@ticker 
       # Application Configuration
       PORT: 3000
       LOG_LEVEL: debug
