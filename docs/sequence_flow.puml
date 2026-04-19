@@ -1,0 +1,64 @@
+@startuml Binance RealTime Data Processing Sequence
+
+title Luồng Xử Lý Dữ Liệu Real-time - Sequence Diagram
+
+participant BinanceAPI as "Binance\nWebSocket API"
+participant BinanceService as "binance-ingest\n(NestJS)"
+participant Kafka as "Apache\nKafka"
+participant Spark as "Spark\nStreaming"
+participant Elasticsearch as "Elasticsearch"
+participant Kibana as "Kibana\nDashboard"
+
+note over BinanceAPI, Kibana
+Continuous Real-time Data Pipeline
+end note
+
+loop Every Price Update (milliseconds)
+    BinanceAPI ->> BinanceService: WebSocket Message\n{s: symbol, c: price, E: timestamp}
+    activate BinanceService
+    
+    BinanceService ->> BinanceService: Parse JSON Data
+    BinanceService ->> BinanceService: Create priceUpdate Object\n{symbol, price, timestamp}
+    
+    BinanceService ->> Kafka: emit('BinanceUSDT-ticker', priceUpdate)
+    activate Kafka
+    
+    Kafka ->> Kafka: Store in Topic\ncrypto-prices
+    deactivate Kafka
+    deactivate BinanceService
+    
+    note right of Kafka
+    Buffer Size: Configurable
+    Retention: Configurable
+    Partitions: For parallelism
+    end note
+end
+
+loop Every Minute (60 second window)
+    Kafka -->> Spark: consume(crypto-prices)
+    activate Spark
+    
+    Spark ->> Spark: Window(60 seconds)
+    Spark ->> Spark: Aggregate Data:\n- Count prices\n- Calculate AVG\n- Find MIN/MAX
+    Spark ->> Spark: Create OHLC:\n- Open = first price\n- High = max price\n- Low = min price\n- Close = last price
+    
+    Spark ->> Elasticsearch: Index Document\n{symbol, OHLC, timestamp}
+    activate Elasticsearch
+    
+    Elasticsearch ->> Elasticsearch: Store in Index\nbinance-ohlc
+    deactivate Elasticsearch
+    deactivate Spark
+end
+
+loop Every 5 Seconds (Real-time refresh)
+    Kibana ->> Elasticsearch: Query latest OHLC data
+    activate Elasticsearch
+    Elasticsearch -->> Kibana: Return documents
+    deactivate Elasticsearch
+    
+    activate Kibana
+    Kibana ->> Kibana: Render Candlestick Charts\nUpdate dashboard
+    deactivate Kibana
+end
+
+@enduml

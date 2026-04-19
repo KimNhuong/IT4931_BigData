@@ -1,0 +1,100 @@
+@startuml Binance System Deployment Architecture
+
+title Hệ Thống Xử Lý Dữ Liệu Binance - Deployment Architecture
+
+!define RECTANGLE_STYLE
+skinparam backgroundColor #FEFEFE
+skinparam arrowColor #333333
+
+package "External Services" {
+    cloud [Binance\nPublic API] as BinancePublic
+}
+
+package "Docker Containers" {
+    package "Application Layer" {
+        frame "binance-ingest Container" {
+            component [NestJS App\nPort: 3000] as NestJSApp
+            component [Kafka Consumer] as KafkaConsumer
+        }
+    }
+    
+    package "Infrastructure Layer" {
+        frame "Kafka Broker" {
+            database [Broker 1\nPort: 9092] as Kafka1
+            note right of Kafka1 : Configurable:\nBROKERS=localhost:9092\nGROUP_ID=binance-consumer
+        }
+        
+        frame "Elasticsearch Stack" {
+            component [Elasticsearch\nPort: 9200] as ES1
+            component [Kibana\nPort: 5601] as Kibana1
+        }
+        
+        frame "Spark Cluster (Optional)" {
+            component [Spark Master] as SparkMaster
+            component [Spark Workers] as SparkWorkers
+        }
+    }
+}
+
+package "Environment Configuration" {
+    note left
+    .env Variables:
+    ───────────────────
+    PORT=3000
+    KAFKA_BROKER=localhost:9092
+    KAFKA_GROUP_ID=binance-consumer-group
+    BINANCE_BTCUSDT_TICKER=wss://stream.binance.com/ws/btcusdt@ticker
+    ELASTICSEARCH_HOST=localhost
+    ELASTICSEARCH_PORT=9200
+    end note
+}
+
+BinancePublic -right-> NestJSApp: WebSocket Connection\nPrice Stream
+NestJSApp -down-> KafkaConsumer: Internal Routing
+KafkaConsumer -down-> Kafka1: Publish/Subscribe\nTopic: crypto-prices
+Kafka1 -down-> SparkMaster: Streaming Data Ingestion
+SparkMaster -right-> SparkWorkers: Distributed Processing
+SparkMaster -down-> ES1: Write Processed Data\nIndex: binance-ohlc
+ES1 -down-> Kibana1: Data Source
+
+note right of NestJSApp
+Responsibilities:
+• Connect to Binance WebSocket
+• Parse streaming price data
+• Emit events to Kafka
+• Error handling & reconnection
+end note
+
+note right of Kafka1
+Buffer & Reliability:
+• Persist streaming data
+• Enable fault tolerance
+• Decouple producers/consumers
+• Handle backpressure
+end note
+
+note right of SparkMaster
+Real-time Processing:
+• Window aggregation (1 min)
+• OHLC calculation
+• Statistics (avg, min, max)
+• Micro-batch processing
+end note
+
+note right of ES1
+Storage & Search:
+• Time-series optimized
+• Full-text search
+• Index management
+• Data persistence
+end note
+
+note right of Kibana1
+Visualization:
+• Candlestick charts
+• Real-time dashboard
+• Custom analytics
+• User interface
+end note
+
+@enduml

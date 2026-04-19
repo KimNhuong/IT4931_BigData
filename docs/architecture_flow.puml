@@ -1,0 +1,79 @@
+@startuml Binance RealTime Data Processing Architecture
+
+title Hệ Thống Xử Lý Dữ Liệu Real-time Binance (Big Data)
+
+!define RECTANGLE_STYLE
+skinparam backgroundColor #FEFEFE
+skinparam arrowColor #333333
+skinparam componentStyle uml2
+skinparam noteBkgColor #FFFACD
+
+package "Data Sources" {
+    component [Binance WebSocket API] as BinanceAPI
+}
+
+package "Ingestion Layer" {
+    frame "binance-ingest (NestJS Application)" as NestJS {
+        component [BinanceService\nWebSocket Handler] as BinanceService
+        component [Kafka Producer\nClient] as KafkaProducer
+    }
+}
+
+package "Message Queue & Buffer" {
+    component [Apache Kafka] as Kafka {
+        queue [Topic:\ncrypto-prices] as KafkaTopic
+    }
+}
+
+package "Processing Layer" {
+    component [Apache Spark Streaming\n(To Be Implemented)] as Spark {
+        note right : - Windowing (1 min)\n- Aggregation (Avg, Min, Max)\n- OHLC Calculation
+    }
+}
+
+package "Storage & Indexing" {
+    component [Elasticsearch] as ES {
+        database [Index:\nbinance-ohlc] as ESIndex
+    }
+}
+
+package "Visualization Layer" {
+    component [Kibana Dashboard] as Kibana {
+        rectangle [Candlestick Charts\nReal-time Monitoring] as KibanaDash
+    }
+}
+
+'' Data Flow
+BinanceAPI --> BinanceService: WebSocket Stream\n{symbol, price, timestamp}
+BinanceService --> KafkaProducer: Price Update Events
+KafkaProducer --> KafkaTopic: Emit to Kafka Topic
+KafkaTopic --> Spark: Consume Stream Data
+Spark --> ES: Processed OHLC Data\n{open, high, low, close}
+ES --> Kibana: Query & Retrieve Data
+Kibana --> KibanaDash: Real-time Visualization
+
+'' Data Format Notes
+note right of BinanceService
+Raw Data Format:
+{
+  "symbol": "BTCUSDT",
+  "price": "65000.50",
+  "timestamp": 1711456000
+}
+end note
+
+note right of Spark
+Processed Format:
+{
+  "symbol": "BTCUSDT",
+  "open": 65000,
+  "high": 65500,
+  "low": 64800,
+  "close": 65200,
+  "timestamp": 1711456000,
+  "window_start": "2024-03-26T12:00:00Z",
+  "window_end": "2024-03-26T12:01:00Z"
+}
+end note
+
+@enduml
