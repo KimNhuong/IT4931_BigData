@@ -111,6 +111,62 @@ services:
       timeout: 5s
       retries: 5
 
+  # MongoDB (Historical Data Lake)
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - bigdata-network
+    healthcheck:
+      test: ["echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Apache Spark (Distributed Processing)
+  spark-master:
+    build:
+      context: ./spark-processing
+      dockerfile: Dockerfile.spark
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+    ports:
+      - "8081:8080" # Spark Master Web UI
+      - "7077:7077" # Spark Master Port
+    networks:
+      - bigdata-network
+
+  spark-worker:
+    build:
+      context: ./spark-processing
+      dockerfile: Dockerfile.spark
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+    networks:
+      - bigdata-network
+
+  # React Dashboard
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: dashboard
+    ports:
+      - "5173:5173"
+    networks:
+      - bigdata-network
+
   # Nest.js Backend Service
   binance-ingest:
     build:
@@ -125,6 +181,8 @@ services:
         condition: service_started
       redis:
         condition: service_started
+      mongodb:
+        condition: service_healthy
     ports:
       - "3000:3000"
     environment:
@@ -138,6 +196,8 @@ services:
       # Redis Configuration
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # MongoDB Configuration
+      MONGODB_URI: mongodb://mongodb:27017/binance
       # Binance Configuration
       BINANCE_WS_URL: wss://stream.binance.com:9443/ws
       BINANCE_BTCUSDT_TICKER: wss://stream.binance.com:9443/ws/btcusdt@ticker 
@@ -156,4 +216,6 @@ networks:
 
 volumes:
   elasticsearch_data:
-  redis_data: 
+  redis_data:
+  mongodb_data:
+ 

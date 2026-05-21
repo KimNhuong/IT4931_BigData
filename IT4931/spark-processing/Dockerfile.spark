@@ -1,0 +1,21 @@
+FROM bitnami/spark:3.5
+
+USER root
+
+# Install dependencies if needed
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Pre-download common connectors (Kafka, MongoDB)
+# Note: In a real scenario, these would be matched to the Spark version
+ENV SPARK_KAFKA_VERSION=3.5.0
+ENV SPARK_MONGO_VERSION=10.2.1
+
+# These jars will be used by spark-submit
+# RUN curl -L https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/${SPARK_KAFKA_VERSION}/spark-sql-kafka-0-10_2.12-${SPARK_KAFKA_VERSION}.jar -o /opt/bitnami/spark/jars/spark-sql-kafka.jar
+
+WORKDIR /app
+
+# Copy application logic
+COPY . /app
+
+USER 1001
