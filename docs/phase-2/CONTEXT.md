@@ -102,78 +102,12 @@ Trình duyệt của người dùng (vẫn đang mở hoặc vừa quay lại Da
 
 ## Luồng đi xuôi (Streaming): Chạy theo cơ chế Push (Dữ liệu từ Binance liên tục chảy qua hệ thống tạo thành dòng thác và tự động đẩy lên màn hình user). Luồng này Spark chạy dạng Continuous/Streaming Job (Bật 24/7 không bao giờ tắt).
 
-    1. Sơ đồ luồng dữ liệu đi xuôi (Real-time Pipeline)
-    [Binance API / WebSocket] 
-            │  (Dòng dữ liệu thô / Tần suất cực cao)
-            ▼
-    ┌───────────────┐
-    │ NestJS Ingest │ (Hoặc Worker Node.js/Go chuyên hứng Stream)
-    └───────┬───────┘
-            │  (Produce nhanh)
-            ▼
-    ┌───────────────┐
-    │  Kafka Topic  │ ──> [Topic: binance-raw-ticks]
-    └───────┬───────┘
-            │  (Consume liên tục)
-            ▼
-    ┌───────────────┐
-    │ Apache Spark  │ (Spark Structured Streaming)
-    │  Streaming    │ ──> [Tính toán: Window 1m/5m, Khối lượng, Cá mập mua bán]
-    └───────┬───────┘
-            │  (Produce kết quả đã tinh chế)
-            ▼
-    ┌───────────────┐
-    │  Kafka Topic  │ ──> [Topic: binance-aggregated-metrics]
-    └───────┬───────┘
-            │  (Consume & Đẩy Real-time)
-            ▼
-    ┌───────────────┐       (WebSockets)       ┌─────────────────┐
-    │  NestJS API   │ ───────────────────────> │ User Dashboard  │
-    └───────────────┘                          └─────────────────┘
-    2. Chi tiết từng bước vận hành
+... (nội dung cũ) ...
 
-        Bước 1: Hứng dữ liệu từ Binance (Data Ingestion)
-        Thay vì dùng HTTP REST API (bị giới hạn rate limit), hệ thống sẽ kết nối tới Binance WebSocket Market Streams (ví dụ: Stream @ticker hoặc @kline).
+## 3. Tổng kết kiến trúc (Lambda & Kappa Alignment)
 
-        Nhiệm vụ của NestJS Worker: Thiết lập kết nối WebSocket với Binance. Mỗi khi nhận được một "tick" dữ liệu (giá thay đổi), nó lập tức chuyển tiếp (Produce) payload thô đó vào Kafka topic binance-raw-ticks.
+Hệ thống được thiết kế để tuân thủ cả hai mô hình xử lý dữ liệu hiện đại:
+- **Kiến trúc Kappa:** Toàn bộ luồng dữ liệu (Streaming Flow) được xử lý qua Kafka và Spark Streaming, cho phép tái xử lý (Reprocessing) bằng cách đọc lại từ Kafka.
+- **Kiến trúc Lambda:** Kết hợp luồng Batch (On-Demand Flow) để xử lý dữ liệu lịch sử khổng lồ từ MongoDB, đảm bảo tính chính xác cao cho các tác vụ không yêu cầu thời gian thực như Backtesting.
 
-        Tại sao không xử lý luôn? Vì dữ liệu Binance đổ về có thể lên tới hàng nghìn tick/giây vào lúc thị trường biến động. NestJS cần phải đẩy ngay vào Kafka để giải phóng bộ nhớ, tránh nghẽn Event Loop.
-
-        Bước 2: Trục truyền tải dữ liệu thô (Kafka Buffer)
-        Topic binance-raw-ticks được cấu hình với nhiều Partitions (Phân mảnh), mỗi partition có thể đại diện cho một nhóm các cặp tiền (Ví dụ: Partition 0 giữ BTC, Partition 1 giữ ETH,...). Kafka sẽ lưu trữ tạm thời dòng dữ liệu thô này với độ trễ gần như bằng 0 (vài miligiây).
-
-        Bước 3: Xử lý dòng dữ liệu thời gian thực (Spark Structured Streaming)
-        Đây là nơi các kỹ thuật Window Functions và Tổng hợp nâng cao phát huy tác dụng ở dạng Real-time chứ không phải trên dữ liệu lịch sử nữa. Spark Streaming sẽ "gặm" dữ liệu liên tục từ binance-raw-ticks:
-
-        Tạo nến tùy biến (Tumbling/Sliding Window): Gom các tick dữ liệu trong vòng đúng 1 phút để tự tạo ra giá Open, High, Low, Close, Volume (OHLCV) mà không phụ thuộc vào nến của Binance.
-
-        Phát hiện bất thường (Anomalies): Sử dụng hàm cửa sổ trượt (Sliding Window) 5 phút để tính toán: Nếu Volume trong 5 phút qua đột ngột cao gấp 3 lần trung bình 1 tiếng trước đó -> Gắn nhãn "Whale Alert" (Cá mập gom hàng).
-
-        Sau khi tính toán xong, Spark đẩy kết quả sang một bộ lọc tinh chế hơn: Kafka topic binance-aggregated-metrics.
-
-        Python
-        # Ví dụ đoạn code Spark Streaming xử lý cửa sổ thời gian thực từ Kafka
-        stream_df = spark.readStream.format("kafka").option("subscribe", "binance-raw-ticks").load()
-
-        # Tính tổng khối lượng giao dịch của mỗi Coin trong cửa sổ trượt 5 phút, cập nhật mỗi 1 phút
-        aggregated_df = stream_df \
-            .groupBy(
-                F.window(col("timestamp"), "5 minutes", "1 minute"),
-                col("symbol")
-            ).agg(F.sum("volume").alias("total_volume_5m"))
-        Bước 4: NestJS tiêu thụ dữ liệu tinh chế & Phát WebSocket
-        NestJS Microservice lúc này sẽ lắng nghe (Consume) từ topic binance-aggregated-metrics. Lúc này dữ liệu đã "sạch" và nhẹ hơn rất nhiều vì đã được Spark gom nhóm (Ví dụ: cứ 1 giây hoặc 1 phút mới có 1 bản ghi kết quả thay vì hàng nghìn tick thô).
-
-        TypeScript
-        // Trong NestJS Gateway
-        @MessagePattern('binance-aggregated-metrics')
-        handleRealtimeMetrics(@Payload() data: any) {
-        // 1. Lưu nhanh vào Redis hoặc TimescaleDB để vẽ biểu đồ lịch sử gần
-        this.cacheService.setLatest(data.symbol, data);
-
-        // 2. Bắn thẳng qua WebSocket cho các Client đang mở Dashboard và đăng ký xem cặp coin đó
-        this.webSocketGateway.server.to(data.symbol).emit('market-update', data);
-        }
-        Bước 5: Dashboard hiển thị
-        Trình duyệt của người dùng kết nối WebSocket tới NestJS, nhận được gói dữ liệu market-update và cập nhật biểu đồ (TradingView chart), danh sách Whale Alert, hoặc bảng so sánh giá (đã qua xử lý Pivot) lập tức mà không cần F5 lại trang.
-    
+**Chi tiết phân chia công việc cho nhóm 5 người:** Xem tại [TEAM_TASK_DIVISION.md](./TEAM_TASK_DIVISION.md).

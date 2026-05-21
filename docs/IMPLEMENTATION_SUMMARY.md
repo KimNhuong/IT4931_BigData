@@ -1,281 +1,78 @@
-# Docker Compose Implementation Summary
+# Big Data System Implementation Summary
 
-## Completed Tasks
+## Phase 1: Infrastructure & Real-time Ingestion (Completed)
 
 ### 1. Docker Compose Configuration (`docker-compose.yml`)
 ✅ **7 Services Configured:**
 - **Zookeeper** (Port 2181): Kafka coordination
 - **Kafka** (Port 9092): Distributed message broker
-  - Auto-topic creation enabled
-  - Internal broker: `kafka:29092`
-  - External broker: `localhost:9092`
 - **Kafka UI** (Port 8080): Visual interface for Kafka management
 - **Elasticsearch** (Port 9200): Full-text search & indexing
-  - Single-node cluster (development)
-  - Security disabled for dev iteration
-  - 512MB heap allocation
-  - Persistent volume: `elasticsearch_data`
 - **Kibana** (Port 5601): Elasticsearch visualization dashboard
 - **Redis** (Port 6379): In-memory cache & sliding window aggregation
-  - AOF persistence enabled
-  - Persistent volume: `redis_data`
 - **Nest.js Backend** (Port 3000): Custom application service
-  - Hot-reload enabled (watch mode)
-  - Health checks configured
-  - Dependencies: Kafka → Elasticsearch → Redis
 
 ### 2. Dockerfile & Build Configuration
 ✅ **Multi-stage Build** (`binance-ingest/Dockerfile`)
-- Stage 1: Build (compiles TypeScript)
-- Stage 2: Runtime (production-optimized)
-- Health checks configured
-- Minimal final image size
-
 ✅ **.dockerignore** (`binance-ingest/.dockerignore`)
-- Excludes 15+ non-essential files/folders
-- Optimizes build context size
 
 ### 3. Environment Configuration
-✅ **`.env`** (binance-ingest/.env)
-- Pre-configured with Docker Compose hosts
-- 10 environment variables for services
+✅ **`.env`**, **`.env.example`**, **`.env.docker`**
 
-✅ **`.env.example`** (binance-ingest/.env.example)
-- Template for users to copy and customize
-
-✅ **`.env.docker`** (root/.env.docker)
-- Docker Compose shared environment variables
-
-### 4. Documentation
-
-✅ **`DOCKER_SETUP.md`** (Comprehensive Guide)
-- Service overview table
-- Prerequisites and quick start (3 steps)
-- Service access URLs and ports
-- Common commands with examples
-- Logging strategies
-- Kafka, Redis, and Elasticsearch specific commands
-- Architecture flow diagram
-- Troubleshooting guide
-- Production deployment checklist
-- Development vs Production comparison
-- Resource links
-
-### 5. Helper Scripts
-
-✅ **`docker-compose-helper.sh`** (Bash for Linux/Mac)
-- 10-option interactive menu
-- Colored output for readability
-- Start/Stop/Restart services
-- View logs (all or specific service)
-- Health check functionality
-- Service status verification
-- CLI tool access (Kafka, Redis, ES)
-- Service port reference
-
-✅ **`docker-compose-helper.ps1`** (PowerShell for Windows)
-- Same functionality as bash version
-- Windows-native PowerShell syntax
-- Invoke-WebRequest for HTTP checks
-- Windows-friendly output formatting
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Docker Network                        │
-├─────────────────────────────────────────────────────────┤
-│                                                           │
-│  ┌──────────┐  ┌─────────┐  ┌──────────────┐           │
-│  │Zookeeper │→→│  Kafka  │→→│Kafka UI(8080)│           │
-│  └──────────┘  └─────────┘  └──────────────┘           │
-│                       ↓                                   │
-│              ┌────────────────┐                          │
-│              │  Nest Backend  │                          │
-│              │   (3000)       │                          │
-│              └────────────────┘                          │
-│              ↙      ↓       ↘                            │
-│        ┌──────┐ ┌──────────┐ ┌──────┐                  │
-│        │Redis │ │Elasticsearch│Kibana│                 │
-│        │(6379)│ │  (9200)     │(5601)│                 │
-│        └──────┘ └──────────────┘──────┘                 │
-│                                                           │
-└─────────────────────────────────────────────────────────┘
-```
-
-## Quick Start
-
-### For Linux/Mac Users:
-```bash
-cd d:\realwork\BigData\IT4931_BigData\IT4931
-chmod +x docker-compose-helper.sh
-./docker-compose-helper.sh
-# Select option 1 to start all services
-```
-
-### For Windows Users:
-```powershell
-cd d:\realwork\BigData\IT4931_BigData\IT4931
-powershell -ExecutionPolicy Bypass -File docker-compose-helper.ps1
-# Select option 1 to start all services
-```
-
-### Manual Start:
-```bash
-docker-compose up -d
-```
-
-## Service Access
-
-| Service | URL | Purpose |
-|---------|-----|---------|
-| Kafka UI | http://localhost:8080 | Monitor topics & messages |
-| Elasticsearch | http://localhost:9200 | Query documents |
-| Kibana | http://localhost:5601 | Visualize data |
-| Backend | http://localhost:3000 | API endpoints |
-| Redis CLI | `docker-compose exec redis redis-cli` | Cache management |
-
-## Key Configuration Details
-
-### Kafka
-- **Broker ID**: 1
-- **Zookeeper Connect**: `zookeeper:2181`
-- **Advertised Listeners**: 
-  - Internal: `PLAINTEXT://kafka:29092`
-  - External: `PLAINTEXT_HOST://kafka:9092`
-- **Auto-create Topics**: Enabled
-- **Replication Factor**: 1 (development)
-
-### Elasticsearch
-- **Cluster Type**: Single-node
-- **Security**: Disabled (development)
-- **Memory**: 512MB (Xms=512m, Xmx=512m)
-- **Persistence**: Volume `elasticsearch_data`
-
-### Redis
-- **Persistence Mode**: AOF (Append-Only File)
-- **Default DB**: 0
-- **Port**: 6379 (standardstandard port)
-- **Data**: Persisted in `redis_data` volume
-
-### Nest.js Backend
-- **Environment**: Development
-- **Port Mapping**: 3000:3000
-- **Volume Mount**: `./binance-ingest/src:/app/src` (hot-reload)
-- **Start Command**: `npm run start:dev`
-
-## Health Checks
-
-All services include health checks:
-- **Zookeeper**: Quorum check
-- **Kafka**: Broker readiness
-- **Elasticsearch**: Cluster health endpoint
-- **Kibana**: Status API
-- **Redis**: PING command
-- **Nest.js**: `/health` endpoint
-
-Health checks have:
-- **Interval**: 10-30 seconds
-- **Timeout**: 5-10 seconds
-- **Retries**: 3-5 attempts
-
-## Volumes & Persistence
-
-| Volume | Service | Purpose |
-|--------|---------|---------|
-| `elasticsearch_data` | Elasticsearch | Persistent index storage |
-| `redis_data` | Redis | Persistent cache data |
-
-**Note**: No volumes for Kafka/Zookeeper (development setup). Add volumes for production.
-
-## Network Isolation
-
-All services communicate via `bigdata-network` bridge network:
-- Allows service-to-service communication by hostname
-- Example: Elasticsearch accessible as `http://elasticsearch:9200` from other services
-
-## Environment Requirements
-
-### Minimum
-- Docker: 20.10+
-- Docker Compose: 2.0+
-- RAM: 4GB
-- Disk Space: 2GB for volumes
-
-### Recommended (Production)
-- RAM: 8GB+
-- Disk: 20GB+ SSD
-- CPU: 4+ cores
-
-## Files Created
-
-```
-IT4931_BigData/IT4931/
-├── docker-compose.yml              # Main orchestration file
-├── DOCKER_SETUP.md                 # Complete setup guide
-├── docker-compose-helper.sh        # Bash helper script
-├── docker-compose-helper.ps1       # PowerShell helper script
-├── .env.docker                     # Docker environment vars
-└── binance-ingest/
-    ├── Dockerfile                  # Multi-stage build
-    ├── .dockerignore              # Build optimization
-    ├── .env                        # App environment vars
-    └── .env.example               # App env template
-```
-
-## Next Steps
-
-1. **Start Services**: Run `docker-compose up -d`
-2. **Verify Health**: Run helper script option 5 or `docker-compose ps`
-3. **Check Logs**: Run helper script option 3 or `docker-compose logs -f`
-4. **Access Interfaces**:
-   - Kafka UI: http://localhost:8080
-   - Kibana: http://localhost:5601
-5. **Implement Kafka Producer**: Connects to Binance WebSocket
-6. **Implement Kafka Consumer**: In Nest.js service
-7. **Build Aggregation Logic**: OHLC calculations with Redis
-8. **Create REST/WebSocket Endpoints**: For frontend integration
-
-## Troubleshooting Quick Links
-
-See `DOCKER_SETUP.md` for:
-- Service startup issues
-- Port conflicts
-- Memory allocation problems
-- Elasticsearch errors
-- Kafka connection failures
-- Nest.js build issues
-- Production deployment guide
-
-## Commands Reference
-
-```bash
-# Management
-docker-compose up -d               # Start all services
-docker-compose down                # Stop all services
-docker-compose ps                  # Show status
-docker-compose logs -f             # View logs
-
-# Kafka
-docker-compose exec kafka kafka-topics --bootstrap-server localhost:9092 --list
-docker-compose exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic crypto-prices --from-beginning
-
-# Redis
-docker-compose exec redis redis-cli
-> KEYS *
-> INFO
-
-# Elasticsearch
-curl http://localhost:9200/_cluster/health
-curl http://localhost:9200/_cat/indices
-
-# Nest Backend
-curl http://localhost:3000/health
-```
+### 4. Documentation & Helper Scripts
+✅ **`DOCKER_SETUP.md`**, **`docker-compose-helper.sh`**, **`docker-compose-helper.ps1`**
 
 ---
 
-**Status**: ✅ Complete - Ready for development  
-**Last Updated**: 2025-04-02  
-**Version**: 1.0.0
+## Phase 2: Advanced Processing & Analytics (Target Architecture)
+
+Based on the **GOAL.MD** and **CONTEXT.md**, Phase 2 implements a **Lambda/Kappa Architecture** to handle both high-velocity streaming data and large-scale historical analysis.
+
+### 1. Real-time Pipeline (Streaming Flow)
+- **Source:** Binance WebSocket Market Streams.
+- **Ingestion:** NestJS Microservice producing raw ticks to Kafka topic `binance-raw-ticks`.
+- **Processing:** **Apache Spark Structured Streaming**
+    - **Window Functions:** 1m/5m OHLC (Open-High-Low-Close) generation.
+    - **Anomaly Detection:** Sliding windows to detect "Whale Alerts" based on volume spikes.
+- **Downstream:** Aggregated metrics produced to Kafka topic `binance-aggregated-metrics`.
+- **Consumption:** NestJS API consumes aggregated data, stores in **Redis/Elasticsearch**, and pushes to Frontend via **WebSockets**.
+
+### 2. On-Demand Pipeline (Batch Flow)
+- **Source:** Historical data stored in **MongoDB**.
+- **Trigger:** User request from Dashboard (e.g., "Run Backtest for BTC 2024-2026").
+- **Orchestration:** NestJS API produces a job event to Kafka topic `binance-backtest-jobs`.
+- **Processing:** **Apache Spark (Batch Job)**
+    - Connects to MongoDB to pull millions of historical records.
+    - Uses **Window Functions**, **Pivots**, and **UDFs** to simulate trading strategies.
+    - Calculates performance metrics (Win Rate, Drawdown, Profit).
+- **Result:** Spark produces results to `binance-backtest-results`. NestJS consumes, updates DB status, and notifies User via WebSockets.
+
+### 3. Data Storage Strategy
+- **MongoDB:** Primary storage for historical "Cold" data (Raw Ticks/K-Lines).
+- **Elasticsearch:** Indexing "Hot" aggregated data for fast querying and Kibana visualization.
+- **Redis:** High-speed caching for real-time dashboard state and sliding window intermediate states.
+
+### 4. Advanced Spark Features (Planned)
+- **Broadcast Joins:** Joining real-time streams with static asset metadata.
+- **Watermarking:** Handling late-arriving data in Structured Streaming.
+- **State Management:** Tracking long-term trend indicators (e.g., 200-day Moving Average) across streaming batches.
+- **Optimization:** Partition pruning, bucketing, and caching strategies for Spark jobs.
+
+---
+
+## Technical Stack Expansion
+
+| Component | Technology | Role |
+|-----------|------------|------|
+| **Streaming** | Spark Structured Streaming | Real-time OHLC & Whale Alerts |
+| **Batch** | Spark Batch | Historical Backtesting |
+| **Storage** | MongoDB | Historical Data Lake |
+| **Search** | Elasticsearch | Aggregated Analytics |
+| **Cache** | Redis | Real-time State |
+| **Messaging**| Kafka | Event backbone for both flows |
+| **Frontend** | React/Dashboard | Visualization & Job Control |
+
+---
+
+**Last Updated**: 2026-05-21 (Updated for Phase 2)
  
