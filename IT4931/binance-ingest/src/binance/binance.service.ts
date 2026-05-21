@@ -1,43 +1,59 @@
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { error } from 'node:console';
-import { WebSocket } from 'ws';
+import { Inject, Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
-
-const BTCUSDT_SOCKET_ENDPOINT = process.env.BINANCE_BTCUSDT_TICKER;
+import { WebSocket } from 'ws';
 
 @Injectable()
 export class BinanceService implements OnModuleInit {
-    private ws!: WebSocket; 
+  private ws: WebSocket;
+  private readonly logger = new Logger(BinanceService.name);
 
-     constructor(@Inject('KAFKA_SERVICE') private kafkaClient: ClientKafka) {}
+  constructor(@Inject('KAFKA_SERVICE') private readonly kafkaClient: ClientKafka) {}
 
-   onModuleInit(){ 
-     this.kafkaClient.subscribeToResponseOf('BinanceUSDT-ticker');
-     this.initBinanceSocket();  
-   }
+  async onModuleInit() {
+    // Phải gọi connect() để Kafka Producer khởi động trước khi bắn dữ liệu
+    await this.kafkaClient.connect();
+    this.initBinanceSocket();
+  }
 
-   initBinanceSocket(){ 
-    this.ws = new WebSocket(BTCUSDT_SOCKET_ENDPOINT!); 
+  private initBinanceSocket() {
+    // Kết nối đến Binance WebSocket (cặp ADAUSDT)
+    this.ws = new WebSocket('wss://stream.binance.com:9443/ws/adausdt@ticker');
 
-    this.ws.on('message', (data)=> { 
-        const rawData = JSON.parse(data.toString()); 
+    this.ws.on('open', () => {
+      this.logger.log('Connected to Binance WebSocket (ADAUSDT)');
+    });
 
-        const priceUpdate = { 
-            symbol: rawData.s, 
-            price: rawData.c,
-            timestamp: rawData.E, 
-        }; 
+    this.ws.on('message', (data: Buffer) => {
+      try {
+        const rawData = JSON.parse(data.toString());
+        
+        const priceUpdate = {
+          symbol: rawData.s,
+          price: rawData.c,
+          timestamp: rawData.E,
+        };
 
-        if(this.kafkaClient){ 
-            this.kafkaClient.emit('BinanceUSDT-ticker', priceUpdate);
-        } else throw error; 
- 
-        console.log('sent to kafka: ', priceUpdate.symbol ,' - ',  priceUpdate.price)
-    })
+        // Bắn dữ liệu thẳng vào Kafka topic 'crypto-prices'
+        // Phải gọi .subscribe() vì NestJS dùng RxJS (Lazy Observable)
+        this.kafkaClient.emit('crypto-prices', priceUpdate).subscribe({
+          error: (err) => this.logger.error('Failed to emit to Kafka', err)
+        });
+        
+      } catch (error) {
+        this.logger.error('Error parsing message', error);
+      }
+    });
 
-        this.ws.on('error', (error)=> { 
-            console.error('socket error ', error); 
-            setTimeout(()=> this.initBinanceSocket(), 5000); 
-        })
-   }
+    this.ws.on('error', (error) => {
+      this.logger.error('WebSocket Error', error);
+      // Reconnect sau 5s
+      setTimeout(() => this.initBinanceSocket(), 5000);
+    });
+
+    this.ws.on('close', () => {
+      this.logger.warn('WebSocket Closed. Reconnecting...');
+      // Reconnect sau 5s
+      setTimeout(() => this.initBinanceSocket(), 5000);
+    });
+  }
 }

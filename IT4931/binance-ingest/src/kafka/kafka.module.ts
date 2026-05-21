@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 
-const LOCAL_KAFKA_BROKER = process.env.KAFKA_BROKER || '';
-const LOCAL_KAFKA_GROUP = process.env.KAFKA_GROUP_ID || ''; 
+const LOCAL_KAFKA_BROKER = process.env.KAFKA_BROKER || 'localhost:9092';
+const LOCAL_KAFKA_GROUP = process.env.KAFKA_GROUP_ID || 'binance-ingest-group';
 
 @Module({
     imports: [ 
