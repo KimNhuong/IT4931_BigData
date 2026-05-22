@@ -6,9 +6,10 @@ import { ElasticSearchModule } from './elastic-search/elastic-search.module';
 import { BinanceService } from './binance/binance.service';
 import { BinanceModule } from './binance/binance.module';
 import { ConfigModule } from '@nestjs/config';
+import { AggregationModule } from './aggregation/aggregation.module';
 
 @Module({
-  imports: [KafkaModule, ElasticSearchModule, BinanceModule, ConfigModule.forRoot(
+  imports: [KafkaModule, ElasticSearchModule, BinanceModule, AggregationModule, ConfigModule.forRoot(
     //extends here
     {isGlobal: true,} 
   )],
