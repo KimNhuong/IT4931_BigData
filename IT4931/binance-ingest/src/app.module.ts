@@ -7,12 +7,19 @@ import { BinanceService } from './binance/binance.service';
 import { BinanceModule } from './binance/binance.module';
 import { ConfigModule } from '@nestjs/config';
 import { AggregationModule } from './aggregation/aggregation.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
-  imports: [KafkaModule, ElasticSearchModule, BinanceModule, AggregationModule, ConfigModule.forRoot(
-    //extends here
-    {isGlobal: true,} 
-  )],
+  imports: [
+    KafkaModule, 
+    ElasticSearchModule, 
+    BinanceModule, 
+    AggregationModule, 
+    EventEmitterModule.forRoot(),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    })
+  ],
   controllers: [AppController],
   providers: [AppService, BinanceService],
 })

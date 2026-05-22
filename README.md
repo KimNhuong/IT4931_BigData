@@ -320,11 +320,11 @@ See **[QUICK_REFERENCE.md](./IT4931/QUICK_REFERENCE.md)** for 100+ commands.
 - [x] Parse incoming messages
 - [x] Send to aggregation engine
 
-### 🔄 Phase 4: Aggregation Engine
-- [ ] Build 1-minute sliding window
-- [ ] Store ticks in Redis sorted sets
-- [ ] Calculate OHLC on boundary
-- [ ] Emit processed candles
+### ✅ Phase 4: Aggregation Engine (COMPLETE)
+- [x] Build 1-minute sliding window
+- [x] Store ticks in Redis sorted sets
+- [x] Calculate OHLC on boundary
+- [x] Emit processed candles
 
 ### 🔄 Phase 5: Storage & Indexing
 - [ ] Complete ElasticSearchService
