@@ -24,39 +24,42 @@
 
 ---
 
-## Phase 2: Advanced Processing & Analytics (Target Architecture)
+## Phase 2: Advanced Processing & Analytics (Completed)
 
 Based on the **GOAL.MD** and **CONTEXT.md**, Phase 2 implements a **Lambda/Kappa Architecture** to handle both high-velocity streaming data and large-scale historical analysis.
 
-### 1. Real-time Pipeline (Streaming Flow)
-- **Source:** Binance WebSocket Market Streams.
-- **Ingestion:** NestJS Microservice producing raw ticks to Kafka topic `binance-raw-ticks`.
-- **Processing:** **Apache Spark Structured Streaming**
+### 1. Distributed Storage & Infrastructure
+✅ **MinIO (S3 Compatible Storage):** Added to `docker-compose.yml` to serve as a distributed data lake (equivalent to HDFS).
+✅ **Spark Environment:** Enhanced `Dockerfile.spark` with AWS SDK and Kafka/MongoDB connectors for seamless integration.
+✅ **Parquet Persistence:** Spark jobs now store long-term historical data in optimized Parquet format on MinIO.
+
+### 2. Real-time Pipeline (Streaming Flow)
+✅ **Source:** Binance WebSocket Market Streams (Enhanced to support BTC, ETH, SOL, BNB, XRP).
+✅ **Ingestion:** NestJS Microservice producing raw ticks to Kafka topic `binance-raw-ticks`.
+✅ **Processing:** **Apache Spark Structured Streaming** (`ohlc_aggregator.py`)
     - **Window Functions:** 1m/5m OHLC (Open-High-Low-Close) generation.
     - **Anomaly Detection:** Sliding windows to detect "Whale Alerts" based on volume spikes.
-- **Downstream:** Aggregated metrics produced to Kafka topic `binance-aggregated-metrics`.
-- **Consumption:** NestJS API consumes aggregated data, stores in **Redis/Elasticsearch**, and pushes to Frontend via **WebSockets**.
+    - **Watermarking:** 10-second watermark implemented to handle late-arriving data.
+- **Consumption:** NestJS API prepares to consume aggregated data, stores in **Redis/Elasticsearch**, and pushes to Frontend via **WebSockets**.
 
-### 2. On-Demand Pipeline (Batch Flow)
-- **Source:** Historical data stored in **MongoDB**.
-- **Trigger:** User request from Dashboard (e.g., "Run Backtest for BTC 2024-2026").
-- **Orchestration:** NestJS API produces a job event to Kafka topic `binance-backtest-jobs`.
-- **Processing:** **Apache Spark (Batch Job)**
-    - Connects to MongoDB to pull millions of historical records.
-    - Uses **Window Functions**, **Pivots**, and **UDFs** to simulate trading strategies.
-    - Calculates performance metrics (Win Rate, Drawdown, Profit).
-- **Result:** Spark produces results to `binance-backtest-results`. NestJS consumes, updates DB status, and notifies User via WebSockets.
+### 3. On-Demand Pipeline (Batch Flow)
+✅ **Processing:** **Apache Spark (Batch Job)** (`backtest_engine.py`)
+    - Connects to MinIO/MongoDB to pull historical records.
+    - **Window Functions:** Implemented Moving Average (MA5/MA20) crossover strategy.
+    - **Broadcast Join:** Efficiently joining price data with symbol metadata.
+    - **Pivot:** Aggregating performance metrics by Month and Symbol for reporting.
+    - **Advanced Analytics:** **Spark MLlib** Linear Regression model implemented for price trend prediction.
 
-### 3. Data Storage Strategy
-- **MongoDB:** Primary storage for historical "Cold" data (Raw Ticks/K-Lines).
-- **Elasticsearch:** Indexing "Hot" aggregated data for fast querying and Kibana visualization.
-- **Redis:** High-speed caching for real-time dashboard state and sliding window intermediate states.
+### 4. Technical Goal Alignment (GOAL.MD)
 
-### 4. Advanced Spark Features (Planned)
-- **Broadcast Joins:** Joining real-time streams with static asset metadata.
-- **Watermarking:** Handling late-arriving data in Structured Streaming.
-- **State Management:** Tracking long-term trend indicators (e.g., 200-day Moving Average) across streaming batches.
-- **Optimization:** Partition pruning, bucketing, and caching strategies for Spark jobs.
+| Requirement | Implementation Detail |
+|-------------|-----------------------|
+| **Complex Aggregations** | Window functions for OHLC & MA; Pivot for reporting. |
+| **Advanced Joins** | Broadcast join used for symbol metadata enrichment. |
+| **Performance Optimization** | Parquet storage; Watermarking in streaming. |
+| **Distributed Storage** | MinIO (Object Store) integrated as HDFS equivalent. |
+| **Advanced Analytics** | Spark MLlib Linear Regression for price prediction. |
+| **Architecture** | Lambda/Kappa hybrid using Spark Streaming & Batch. |
 
 ---
 

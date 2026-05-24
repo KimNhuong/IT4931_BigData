@@ -16,17 +16,18 @@ Mỗi thành viên sẽ thực hiện 5 bước sau cho Symbol của mình:
 ### 1. Ingestion & Storage (Data Entry)
 - [ ] Cấu hình NestJS để subcribe WebSocket Binance cho symbol được giao.
 - [ ] Đẩy dữ liệu thô vào Kafka topic `binance-raw-ticks`.
-- [ ] Thiết kế và triển khai việc lưu trữ dữ liệu thô từ Kafka vào **MongoDB** (Lớp lưu trữ lịch sử).
+- [ ] Thiết kế và triển khai việc lưu trữ dữ liệu thô từ Kafka vào **MongoDB** và **MinIO** (định dạng **Parquet** - thỏa mãn yêu cầu Lưu trữ phân tán).
 
 ### 2. Real-time Processing (Spark Streaming)
 - [ ] Viết Spark Structured Streaming job để tính toán OHLC (1m, 5m) cho symbol của mình.
 - [ ] Cài đặt logic phát hiện "Cá mập" (Whale Alert) dựa trên đột biến volume của symbol đó.
-- [ ] Xử lý Watermarking để đảm bảo dữ liệu đến trễ không làm sai lệch biểu đồ.
+- [ ] Xử lý **Watermarking** và **Checkpointing** để đảm bảo dữ liệu đến trễ và khả năng chịu lỗi.
 
 ### 3. Analytics & Backtesting (Spark Batch)
-- [ ] Viết Spark Batch job để truy vấn dữ liệu lịch sử của symbol từ MongoDB.
-- [ ] Triển khai ít nhất 01 chiến thuật trading (ví dụ: Moving Average) để chạy Backtest trên symbol đó.
-- [ ] Tính toán các chỉ số Profit/Loss, Drawdown bằng các hàm Pivot và Window Functions của Spark.
+- [ ] Viết Spark Batch job để truy vấn dữ liệu lịch sử của symbol từ MinIO/Parquet hoặc MongoDB.
+- [ ] Thực hiện **Broadcast Join** với bảng metadata symbol để làm giàu dữ liệu trước khi tính toán.
+- [ ] Triển khai chiến thuật trading (ví dụ: MA Crossover) sử dụng **Window Functions** và **Pivot** để tính PnL theo tháng.
+- [ ] Tích hợp **Spark MLlib** (ví dụ: Linear Regression) để dự đoán xu hướng giá ngắn hạn.
 
 ### 4. API & Backend Integration
 - [ ] Viết API NestJS để truy vấn dữ liệu aggregated từ **Elasticsearch**.
@@ -36,15 +37,15 @@ Mỗi thành viên sẽ thực hiện 5 bước sau cho Symbol của mình:
 ### 5. Frontend & Visualization
 - [ ] Phát triển màn hình Dashboard riêng (hoặc một Tab) cho symbol của mình.
 - [ ] Tích hợp biểu đồ nến (Candlestick Chart) hiển thị dữ liệu từ Spark Streaming.
-- [ ] Hiển thị danh sách Whale Alerts và kết quả Backtest trực quan.
+- [ ] Hiển thị danh sách Whale Alerts và kết quả Backtest/ML Prediction trực quan.
 
 ---
 
 ## Phần chung (Shared Infrastructure)
 *Tất cả thành viên cùng phối hợp xây dựng phần móng:*
 
-1. **Hạ tầng chung:** Thiết lập Docker Compose chung (Kafka, Spark Cluster, MongoDB, ES) để mọi người cùng deploy code vào.
-2. **Standardization:** Thống nhất định dạng JSON/Schema chung giữa các thành viên để các module có thể giao tiếp với nhau.
+1. **Hạ tầng chung:** Thiết lập Docker Compose chung (Kafka, Spark Cluster, MongoDB, ES, **MinIO**) để mọi người cùng deploy code vào.
+2. **Standardization:** Thống nhất định dạng JSON/Schema và cấu trúc thư mục Parquet trên MinIO.
 3. **CI/CD & Monitoring:** Cùng nhau quản lý việc log và check sức khỏe của các container.
 
 ---

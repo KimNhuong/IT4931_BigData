@@ -1,43 +1,63 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { error } from 'node:console';
 import { WebSocket } from 'ws';
 import { ClientKafka } from '@nestjs/microservices';
 
-const BTCUSDT_SOCKET_ENDPOINT = process.env.BINANCE_BTCUSDT_TICKER;
+const SYMBOLS = ['btcusdt', 'ethusdt', 'solusdt', 'bnbusdt', 'xrpusdt'];
+const BINANCE_WS_BASE_URL = 'wss://stream.binance.com:9443/ws';
 
 @Injectable()
 export class BinanceService implements OnModuleInit {
     private ws!: WebSocket; 
 
-     constructor(@Inject('KAFKA_SERVICE') private kafkaClient: ClientKafka) {}
+    constructor(@Inject('KAFKA_SERVICE') private kafkaClient: ClientKafka) {}
 
-   onModuleInit(){ 
-     this.kafkaClient.subscribeToResponseOf('BinanceUSDT-ticker');
-     this.initBinanceSocket();  
-   }
+    onModuleInit() { 
+        this.initBinanceSocket();  
+    }
 
-   initBinanceSocket(){ 
-    this.ws = new WebSocket(BTCUSDT_SOCKET_ENDPOINT!); 
+    initBinanceSocket() { 
+        // Combined stream for multiple symbols
+        const streams = SYMBOLS.map(s => `${s}@ticker`).join('/');
+        const url = `${BINANCE_WS_BASE_URL}/${streams}`;
+        
+        this.ws = new WebSocket(url); 
 
-    this.ws.on('message', (data)=> { 
-        const rawData = JSON.parse(data.toString()); 
+        this.ws.on('message', (data) => { 
+            try {
+                const rawData = JSON.parse(data.toString()); 
 
-        const priceUpdate = { 
-            symbol: rawData.s, 
-            price: rawData.c,
-            timestamp: rawData.E, 
-        }; 
+                const priceUpdate = { 
+                    symbol: rawData.s, // Symbol
+                    price: parseFloat(rawData.c), // Last Price
+                    volume: parseFloat(rawData.v), // Total Traded Base Asset Volume
+                    timestamp: rawData.E, // Event Time
+                    high: parseFloat(rawData.h),
+                    low: parseFloat(rawData.l),
+                    open: parseFloat(rawData.o),
+                }; 
 
-        if(this.kafkaClient){ 
-            this.kafkaClient.emit('BinanceUSDT-ticker', priceUpdate);
-        } else throw error; 
- 
-        console.log('sent to kafka: ', priceUpdate.symbol ,' - ',  priceUpdate.price)
-    })
+                if (this.kafkaClient) { 
+                    this.kafkaClient.emit('binance-raw-ticks', priceUpdate);
+                }
+         
+                // console.log(`[${priceUpdate.symbol}] Price: ${priceUpdate.price}`);
+            } catch (err) {
+                console.error('Error processing message:', err);
+            }
+        });
 
-        this.ws.on('error', (error)=> { 
-            console.error('socket error ', error); 
-            setTimeout(()=> this.initBinanceSocket(), 5000); 
-        })
-   }
+        this.ws.on('open', () => {
+            console.log('Connected to Binance WebSocket');
+        });
+
+        this.ws.on('error', (error) => { 
+            console.error('Socket error:', error); 
+            setTimeout(() => this.initBinanceSocket(), 5000); 
+        });
+
+        this.ws.on('close', () => {
+            console.log('Binance WebSocket closed. Reconnecting...');
+            setTimeout(() => this.initBinanceSocket(), 5000);
+        });
+    }
 }
