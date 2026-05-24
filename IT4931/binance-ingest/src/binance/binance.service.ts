@@ -16,7 +16,6 @@ export class BinanceService implements OnModuleInit {
     }
 
     initBinanceSocket() { 
-        // Combined stream for multiple symbols
         const streams = SYMBOLS.map(s => `${s}@ticker`).join('/');
         const url = `${BINANCE_WS_BASE_URL}/${streams}`;
         

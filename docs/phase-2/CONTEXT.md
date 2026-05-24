@@ -61,6 +61,7 @@ Sau khi tính ra các chỉ số cuối cùng (Tỷ lệ thắng, Drawdown, Prof
 
 Python
 # Ví dụ đoạn code Spark lắng nghe Job từ Kafka và xử lý Batch dữ liệu lịch sử
+
 kafka_df = spark.readStream.format("kafka").option("subscribe", "binance-backtest-jobs").load()
 
 def process_backtest_job(df, batch_id):
