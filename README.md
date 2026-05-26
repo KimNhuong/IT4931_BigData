@@ -326,11 +326,11 @@ See **[QUICK_REFERENCE.md](./IT4931/QUICK_REFERENCE.md)** for 100+ commands.
 - [x] Calculate OHLC on boundary
 - [x] Emit processed candles
 
-### 🔄 Phase 5: Storage & Indexing
-- [ ] Complete ElasticSearchService
-- [ ] Create index mappings
-- [ ] Upsert OHLC candles
-- [ ] Implement bulk operations
+### ✅ Phase 5: Storage & Indexing (COMPLETE)
+- [x] Complete ElasticSearchService
+- [x] Create index mappings
+- [x] Upsert OHLC candles
+- [x] Implement bulk operations
 
 ### 🔄 Phase 6: API Layer
 - [ ] REST endpoints for historical queries
