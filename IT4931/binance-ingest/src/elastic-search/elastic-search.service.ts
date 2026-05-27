@@ -151,9 +151,15 @@ export class ElasticSearchService implements OnModuleInit {
   }
 
   /**
-   * Helper search function for historical queries (Phase 6).
+   * Helper search function for historical queries (Phase 6) with pagination and filtering.
    */
-  async getHistoricalCandles(symbol: string, from?: number, to?: number, limit = 100): Promise<any[]> {
+  async getHistoricalCandles(
+    symbol: string,
+    from?: number,
+    to?: number,
+    page = 1,
+    limit = 100,
+  ): Promise<{ data: any[]; total: number; page: number; limit: number; totalPages: number }> {
     try {
       const query: any = {
         bool: {
@@ -168,17 +174,45 @@ export class ElasticSearchService implements OnModuleInit {
         query.bool.must.push({ range: { startTime: range } });
       }
 
+      const fromIndex = (page - 1) * limit;
+
       const response = await this.elasticsearchService.search({
         index: this.indexName,
         query,
         sort: [{ startTime: 'desc' }],
+        from: fromIndex,
         size: limit,
       });
 
-      return response.hits.hits.map((hit: any) => hit._source);
+      const totalHits = typeof response.hits.total === 'number' 
+        ? response.hits.total 
+        : (response.hits.total as any)?.value || 0;
+
+      const data = response.hits.hits.map((hit: any) => hit._source);
+
+      return {
+        data,
+        total: totalHits,
+        page,
+        limit,
+        totalPages: Math.ceil(totalHits / limit),
+      };
     } catch (error) {
       this.logger.error(`Failed to fetch historical candles for ${symbol}`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Ping Elasticsearch to verify connection health.
+   */
+  async ping(): Promise<boolean> {
+    try {
+      await this.elasticsearchService.ping();
+      return true;
+    } catch (error) {
+      this.logger.error('Elasticsearch ping failed', error);
+      return false;
     }
   }
 }

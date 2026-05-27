@@ -186,9 +186,10 @@ describe('ElasticSearchService', () => {
   });
 
   describe('getHistoricalCandles', () => {
-    it('should search with correct queries', async () => {
+    it('should search with correct queries and pagination', async () => {
       mockNestElasticsearchService.search.mockResolvedValue({
         hits: {
+          total: { value: 150 },
           hits: [
             {
               _source: {
@@ -204,7 +205,7 @@ describe('ElasticSearchService', () => {
         },
       });
 
-      const result = await service.getHistoricalCandles('BTCUSDT', 1711456000000, 1711456060000, 10);
+      const result = await service.getHistoricalCandles('BTCUSDT', 1711456000000, 1711456060000, 2, 10);
 
       expect(mockNestElasticsearchService.search).toHaveBeenCalledWith({
         index: mockIndexName,
@@ -224,11 +225,30 @@ describe('ElasticSearchService', () => {
           },
         },
         sort: [{ startTime: 'desc' }],
+        from: 10,
         size: 10,
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].symbol).toBe('BTCUSDT');
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].symbol).toBe('BTCUSDT');
+      expect(result.total).toBe(150);
+      expect(result.page).toBe(2);
+      expect(result.limit).toBe(10);
+      expect(result.totalPages).toBe(15);
+    });
+  });
+
+  describe('ping', () => {
+    it('should return true if elasticsearch ping succeeds', async () => {
+      mockNestElasticsearchService.ping = jest.fn().mockResolvedValue(true);
+      const result = await service.ping();
+      expect(result).toBe(true);
+    });
+
+    it('should return false if elasticsearch ping fails', async () => {
+      mockNestElasticsearchService.ping = jest.fn().mockRejectedValue(new Error('Connection failed'));
+      const result = await service.ping();
+      expect(result).toBe(false);
     });
   });
 

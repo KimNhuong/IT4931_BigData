@@ -8,6 +8,7 @@ import { BinanceModule } from './binance/binance.module';
 import { ConfigModule } from '@nestjs/config';
 import { AggregationModule } from './aggregation/aggregation.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { GatewayModule } from './gateway/gateway.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     ElasticSearchModule, 
     BinanceModule, 
     AggregationModule, 
+    GatewayModule,
     EventEmitterModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,

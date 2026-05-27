@@ -36,6 +36,7 @@ describe('ElasticSearchController', () => {
         'btcusdt',
         '1711456000000',
         '1711456060000',
+        '2',
         '20',
       );
 
@@ -43,12 +44,13 @@ describe('ElasticSearchController', () => {
         'BTCUSDT',
         1711456000000,
         1711456060000,
+        2,
         20,
       );
       expect(result).toEqual([{ symbol: 'BTCUSDT' }]);
     });
 
-    it('should use default limit and handle undefined from/to parameters', async () => {
+    it('should use default limit/page and handle undefined from/to parameters', async () => {
       mockElasticSearchService.getHistoricalCandles.mockResolvedValue([]);
 
       await controller.getHistoricalCandles('ethusdt');
@@ -57,6 +59,7 @@ describe('ElasticSearchController', () => {
         'ETHUSDT',
         undefined,
         undefined,
+        1,
         100,
       );
     });
