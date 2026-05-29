@@ -165,11 +165,11 @@ AGGREGATION_WINDOW_MS=60000                 # 1 minute window
 - [x] Add health check endpoint
 - [x] Implement pagination and filtering
 
-### Phase 5: Frontend Integration
-- [ ] Connect to REST API
-- [ ] Subscribe to WebSocket updates
-- [ ] Render candlestick charts
-- [ ] Show real-time data
+### Phase 5: Frontend Integration (COMPLETE)
+- [x] Connect to REST API (getHistoricalCandles, getSystemHealth)
+- [x] Subscribe to WebSocket updates (candle.live, candle.all)
+- [x] Render candlestick charts (ECharts Candlestick)
+- [x] Show real-time data (MarketOverview ticker flashes)
 
 ## Technology Stack Summary
 
