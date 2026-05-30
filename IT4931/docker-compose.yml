@@ -127,6 +127,8 @@ services:
         condition: service_started
     ports:
       - "3000:3000"
+    env_file:
+    - ./binance-ingest/.env
     environment:
       NODE_ENV: development
       # Kafka Configuration

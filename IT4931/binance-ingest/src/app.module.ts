@@ -9,6 +9,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AggregationModule } from './aggregation/aggregation.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { GatewayModule } from './gateway/gateway.module';
+import { EthusdtModule } from './symbols/ethusdt/symbol.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { GatewayModule } from './gateway/gateway.module';
     BinanceModule, 
     AggregationModule, 
     GatewayModule,
+    EthusdtModule,
     EventEmitterModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
