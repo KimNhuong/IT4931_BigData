@@ -6,12 +6,20 @@ import { ElasticSearchModule } from './elastic-search/elastic-search.module';
 import { BinanceService } from './binance/binance.service';
 import { BinanceModule } from './binance/binance.module';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { EthusdtModule } from './symbols/ethusdt/symbol.module';
 
 @Module({
-  imports: [KafkaModule, ElasticSearchModule, BinanceModule, ConfigModule.forRoot(
-    //extends here
-    {isGlobal: true,} 
-  )],
+  imports: [
+    KafkaModule, 
+    ElasticSearchModule, 
+    BinanceModule, 
+    EthusdtModule,
+    EventEmitterModule.forRoot(),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    })
+  ],
   controllers: [AppController],
   providers: [AppService, BinanceService],
 })

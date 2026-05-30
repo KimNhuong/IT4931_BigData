@@ -2,5 +2,8 @@
   "dependencies": {
     "binance-api-node": "^0.13.8",
     "kafkajs": "^2.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1"
   }
 }
