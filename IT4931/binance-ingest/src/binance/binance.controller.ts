@@ -1,12 +1,10 @@
 import { Controller } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 
-const KAFKA_PRICES = process.env.KAFKA_TOPIC_PRICES; 
-
 @Controller('binance')
 export class BinanceController {
-    @EventPattern(KAFKA_PRICES)
+    @EventPattern('binance-raw-ticks')
     handleNewPrice(@Payload() data:any){
-        console.log( data.symbol, ' - ', data.price); 
+        console.log('Symbol: ',data.symbol, 'data', data ); 
     }
 }

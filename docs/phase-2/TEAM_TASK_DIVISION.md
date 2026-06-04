@@ -3,7 +3,7 @@
 Thay vì chia theo chức năng (Role), nhóm sẽ chia theo **Cặp tiền (Symbol)**. Mỗi thành viên sẽ chịu trách nhiệm phát triển **toàn bộ pipeline (End-to-End)** cho symbol được giao. Cách tiếp cận này giúp mọi thành viên đều được trải nghiệm và làm chủ toàn bộ các công nghệ trong hệ thống Big Data (NestJS, Kafka, Spark, MongoDB, Elasticsearch, React).
 
 ## Phân chia Symbol
-- **Thành viên 1:** Phụ trách symbol **BTCUSDT** (Bitcoin)
+- **Thành viên 1:** Phụ trách symbol **BTCUSDT** (Bitcoin) --> NhuongDK
 - **Thành viên 2:** Phụ trách symbol **ETHUSDT** (Ethereum)
 - **Thành viên 3:** Phụ trách symbol **SOLUSDT** (Solana)
 - **Thành viên 4:** Phụ trách symbol **BNBUSDT** (Binance Coin)
@@ -55,4 +55,4 @@ Mỗi thành viên sẽ thực hiện 5 bước sau cho Symbol của mình:
 - **Tính độc lập:** Mỗi người có thể test pipeline của mình với symbol riêng mà không sợ ảnh hưởng quá nhiều đến logic của người khác.
 - **Dễ đánh giá:** Kết quả hiển thị rõ ràng trên Dashboard theo từng symbol.
 
-**Last Updated**: 2026-05-21 (Updated to Symbol-Based Approach)
+**Last Updated**: 2026-05-24 (Updated to Symbol-Based Approach)

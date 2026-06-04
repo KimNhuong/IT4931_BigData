@@ -9,6 +9,11 @@ KAFKA_TOPIC = "binance-raw-ticks"
 CHECKPOINT_LOCATION = "/app/checkpoints/ohlc_aggregator"
 OUTPUT_MODE = "append"
 
+# MongoDB Configuration
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongodb:27017")
+MONGO_DATABASE = "binance"
+MONGO_COLLECTION = "ohlc_data"
+
 # Schema of the incoming Kafka messages
 schema = StructType([
     StructField("symbol", StringType()),
@@ -24,6 +29,9 @@ def create_spark_session():
     return SparkSession.builder \
         .appName("BinanceOHLCAggregator") \
         .config("spark.sql.shuffle.partitions", "2") \
+        .config("spark.mongodb.write.connection.uri", MONGO_URI) \
+        .config("spark.mongodb.write.database", MONGO_DATABASE) \
+        .config("spark.mongodb.write.collection", MONGO_COLLECTION) \
         .getOrCreate()
 
 def process_stream():
@@ -76,32 +84,41 @@ def process_stream():
     whale_alerts = ohlc_df.filter(col("volume") > 100) \
         .withColumn("alert_type", expr("'WHALE_VOLUME'"))
 
-    # Write to Console (for debugging)
-    query_console = ohlc_df.writeStream \
-        .outputMode("update") \
-        .format("console") \
-        .start()
-
-    # In a real scenario, we would write to Elasticsearch or MongoDB here
-    # Since we want to use 'Intermediate Spark' features, we could use foreachBatch
+    # Consolidated sink using foreachBatch
     def save_to_sinks(batch_df, batch_id):
-        # 1. Save to Elasticsearch (requires elasticsearch-spark connector)
-        # batch_df.write.format("org.elasticsearch.spark.sql").mode("append").save("crypto-ohlc")
+        # 1. Print to console for debugging (Replacing console sink)
+        print(f"-------------------------------------------")
+        print(f"Batch: {batch_id}")
+        print(f"-------------------------------------------")
+        if batch_df.isEmpty():
+            print("Batch is empty.")
+            return
+            
+        batch_df.show()
         
         # 2. Save to MongoDB
-        # batch_df.write.format("mongodb").mode("append").option("collection", "OHLC").save()
-        
-        # 3. Save to MinIO (Parquet) - Distributed Storage requirement
-        batch_df.write.mode("append").parquet("s3a://binance-data/ohlc/")
-        
-        print(f"Batch {batch_id} processed and saved.")
+        try:
+            print(f"Batch {batch_id}: Saving to MongoDB...")
+            batch_df.write.format("mongodb") \
+                .mode("append") \
+                .option("database", MONGO_DATABASE) \
+                .option("collection", MONGO_COLLECTION) \
+                .save()
+            print(f"Batch {batch_id} processed and saved.")
+        except Exception as e:
+            print(f"Error saving batch {batch_id} to MongoDB: {str(e)}")
 
-    # query_sinks = ohlc_df.writeStream \
-    #     .foreachBatch(save_to_sinks) \
-    #     .option("checkpointLocation", CHECKPOINT_LOCATION) \
-    #     .start()
+        # 3. Save to MinIO (Optional placeholder)
+        # batch_df.write.mode("append").parquet("s3a://binance-data/ohlc/")
 
-    query_console.awaitTermination()
+    # Start the streaming query with a single sink
+    query = ohlc_df.writeStream \
+        .foreachBatch(save_to_sinks) \
+        .outputMode("append") \
+        .option("checkpointLocation", CHECKPOINT_LOCATION) \
+        .start()
+
+    query.awaitTermination()
 
 if __name__ == "__main__":
     process_stream()

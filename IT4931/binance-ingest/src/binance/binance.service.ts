@@ -39,7 +39,6 @@ export class BinanceService implements OnModuleInit {
                     this.kafkaClient.emit('binance-raw-ticks', priceUpdate);
                 }
          
-                // console.log(`[${priceUpdate.symbol}] Price: ${priceUpdate.price}`);
             } catch (err) {
                 console.error('Error processing message:', err);
             }
