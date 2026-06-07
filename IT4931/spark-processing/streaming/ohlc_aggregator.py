@@ -9,10 +9,12 @@ KAFKA_TOPIC = "binance-raw-ticks"
 CHECKPOINT_LOCATION = "/app/checkpoints/ohlc_aggregator"
 OUTPUT_MODE = "append"
 
+# Danh sách Coin cấu hình sẵn để tối ưu hiệu năng
+TRACKED_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
+
 # MongoDB Configuration
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongodb:27017")
 MONGO_DATABASE = "binance"
-MONGO_COLLECTION = "ohlc_data"
 
 # Schema of the incoming Kafka messages
 schema = StructType([
@@ -31,7 +33,7 @@ def create_spark_session():
         .config("spark.sql.shuffle.partitions", "2") \
         .config("spark.mongodb.write.connection.uri", MONGO_URI) \
         .config("spark.mongodb.write.database", MONGO_DATABASE) \
-        .config("spark.mongodb.write.collection", MONGO_COLLECTION) \
+        .config("spark.sql.streaming.minBatchesToRetain", "10") \
         .getOrCreate()
 
 def process_stream():
@@ -79,14 +81,8 @@ def process_stream():
             col("volume")
         )
 
-    # Whale Alert Detection (Example: Volume > 100 on 1m window)
-    # In reality, this threshold should be symbol-specific
-    whale_alerts = ohlc_df.filter(col("volume") > 100) \
-        .withColumn("alert_type", expr("'WHALE_VOLUME'"))
-
     # Consolidated sink using foreachBatch
     def save_to_sinks(batch_df, batch_id):
-        # 1. Print to console for debugging (Replacing console sink)
         print(f"-------------------------------------------")
         print(f"Batch: {batch_id}")
         print(f"-------------------------------------------")
@@ -96,26 +92,42 @@ def process_stream():
             
         batch_df.show()
         
-        # 2. Save to MongoDB
         try:
-            print(f"Batch {batch_id}: Saving to MongoDB...")
-            batch_df.write.format("mongodb") \
-                .mode("append") \
-                .option("database", MONGO_DATABASE) \
-                .option("collection", MONGO_COLLECTION) \
-                .save()
-            print(f"Batch {batch_id} processed and saved.")
-        except Exception as e:
-            print(f"Error saving batch {batch_id} to MongoDB: {str(e)}")
+            print(f"Batch {batch_id}: Processing via static TRACKED_SYMBOLS list...")
+            
+            # Chạy vòng lặp qua danh sách tĩnh đã khai báo ở đầu file
+            for symbol_name in TRACKED_SYMBOLS:
+                symbol_df = batch_df.filter(col("symbol") == symbol_name)
+                
+                # Kiểm tra xem trong batch này, coin hiện tại có dữ liệu nến không
+                if not symbol_df.rdd.isEmpty(): 
+                    dynamic_collection_name = f"OHLC_{symbol_name}"
+                    print(f"--> Saving data to collection: {dynamic_collection_name}")
+                    
+                    symbol_df.write.format("mongodb") \
+                        .mode("append") \
+                        .option("database", MONGO_DATABASE) \
+                        .option("collection", dynamic_collection_name) \
+                        .save()
+                    
+                    kafka_payload_df = symbol_df.selectExpr("CAST(timestamp AS STRING) AS key", "to_json(struct(*)) AS value")
+                    
+                    kafka_payload_df.write \
+                        .format("kafka") \
+                        .option("kafka.bootstrap.servers", KAFKA_BROKER) \
+                        .option("topic", "binance-live-ohlc") \
+                        .save()
+                    
+            print(f"Batch {batch_id} successfully processed, split to Mongo and pushed to Kafka.")
 
-        # 3. Save to MinIO (Optional placeholder)
-        # batch_df.write.mode("append").parquet("s3a://binance-data/ohlc/")
+        except Exception as e:
+            print(f"Error saving batch {batch_id} dynamically to MongoDB: {str(e)}")
 
     # Start the streaming query with a single sink
     query = ohlc_df.writeStream \
         .foreachBatch(save_to_sinks) \
         .outputMode("append") \
-        .trigger(processingTime='10 seconds')
+        .trigger(processingTime='10 seconds') \
         .option("checkpointLocation", CHECKPOINT_LOCATION) \
         .start()
 
