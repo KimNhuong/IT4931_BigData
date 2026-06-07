@@ -138,3 +138,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 docs/LessonLearned/knowledge.md
+
+/IT4931/spark-processing/checkpoints
+/IT4931/spark-processing/jars

@@ -23,4 +23,7 @@ WORKDIR /app
 # Copy application logic
 COPY . /app
 
+# Make the helper script executable
+USER root
+RUN chmod +x /app/run-aggregator.sh
 USER 1001

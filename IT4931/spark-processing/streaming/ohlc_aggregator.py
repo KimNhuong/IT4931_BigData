@@ -115,6 +115,7 @@ def process_stream():
     query = ohlc_df.writeStream \
         .foreachBatch(save_to_sinks) \
         .outputMode("append") \
+        .trigger(processingTime='10 seconds')
         .option("checkpointLocation", CHECKPOINT_LOCATION) \
         .start()
 
