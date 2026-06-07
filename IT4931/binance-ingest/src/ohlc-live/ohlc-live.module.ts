@@ -4,7 +4,7 @@ import { OhlcLiveController } from './ohlc-live.controller';
 import { OhlcLiveGateway } from './ohlc-live.gateway';
 
 @Module({
-  providers: [OhlcLiveService],
-  controllers: [OhlcLiveController, OhlcLiveGateway]
+  providers: [OhlcLiveService, OhlcLiveGateway],
+  controllers: [OhlcLiveController]
 })
 export class OhlcLiveModule {}
