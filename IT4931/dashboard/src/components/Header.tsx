@@ -1,65 +1,86 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { formatPrice } from '../utils/format';
 
 interface HeaderProps {
   symbol: string;
   price: number | null;
   isConnected: boolean;
+  isConnecting: boolean;
+  onRetry: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ symbol, price, isConnected }) => {
-  const [prevPrice, setPrevPrice] = useState<number | null>(null);
+const Header: React.FC<HeaderProps> = ({ symbol, price, isConnected, isConnecting, onRetry }) => {
   const [flash, setFlash] = useState<'up' | 'down' | null>(null);
+  const prevPriceRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (price && prevPrice) {
-      if (price > prevPrice) {
+    if (price !== null && prevPriceRef.current !== null) {
+      if (price > prevPriceRef.current) {
         setFlash('up');
-      } else if (price < prevPrice) {
+      } else if (price < prevPriceRef.current) {
         setFlash('down');
       }
-      const timer = setTimeout(() => setFlash(null), 1000);
+      
+      const timer = setTimeout(() => setFlash(null), 300);
       return () => clearTimeout(timer);
     }
-    setPrevPrice(price);
+    prevPriceRef.current = price;
   }, [price]);
 
-  const formattedPrice = price 
-    ? new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price)
-    : '---';
-
   return (
-    <header className="h-20 bg-[#0a0a0a] border-b border-[#1a1a1a] flex items-center justify-between px-8">
-      <div className="flex items-center gap-8">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-black text-white tracking-tighter uppercase">{symbol}</h2>
-            <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${isConnected ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </div>
+    <header className="h-20 border-b border-[#1a1a1a] bg-black/50 backdrop-blur-xl flex items-center justify-between px-8 sticky top-0 z-30">
+      <div className="flex items-center gap-6">
+        <div className="flex flex-col">
+          <h1 className="text-2xl font-black tracking-tighter text-white flex items-center gap-2">
+            {symbol}
+            <span className="text-[10px] bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded border border-blue-500/20 tracking-widest font-bold">LIVE</span>
+          </h1>
+          <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold tracking-widest uppercase">
+            <span>Binance Spot</span>
+            <span>•</span>
+            <span>1m Interval</span>
           </div>
-          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-[0.2em]">Binance Spot Marketplace</p>
         </div>
 
-        <div className="h-10 w-[1px] bg-[#1a1a1a]" />
-
-        <div>
-          <div className={`text-2xl font-mono font-bold transition-colors duration-300 ${
-            flash === 'up' ? 'text-green-500' : flash === 'down' ? 'text-red-500' : 'text-white'
-          }`}>
-            {formattedPrice}
-          </div>
-          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-[0.2em]">Current Window Price (USDT)</p>
+        <div className={`px-4 py-2 rounded-xl transition-all duration-300 border ${
+          flash === 'up' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' :
+          flash === 'down' ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' :
+          'bg-white/5 border-white/5 text-white'
+        }`}>
+          <span className="text-2xl font-mono font-bold tabular-nums">
+            {formatPrice(price)}
+          </span>
         </div>
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="text-right">
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Network latency</p>
-          <p className="text-xs font-mono text-white">~12ms</p>
+        <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/5">
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Connection Status</span>
+            <span className={`text-[10px] font-black uppercase tracking-widest ${
+              isConnected ? 'text-emerald-500' : isConnecting ? 'text-amber-500' : 'text-rose-500'
+            }`}>
+              {isConnected ? 'Stable' : isConnecting ? 'Connecting...' : 'Disconnected'}
+            </span>
+          </div>
+          <div className="relative flex h-3 w-3">
+            {isConnected && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            )}
+            <span className={`relative inline-flex rounded-full h-3 w-3 ${
+              isConnected ? 'bg-emerald-500' : isConnecting ? 'bg-amber-500' : 'bg-rose-500'
+            }`}></span>
+          </div>
         </div>
-        <div className="w-10 h-10 rounded-full border border-[#1a1a1a] flex items-center justify-center bg-gradient-to-br from-[#1a1a1a] to-black">
-          <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-        </div>
+
+        {!isConnected && !isConnecting && (
+          <button 
+            onClick={onRetry}
+            className="px-4 py-2 bg-blue-500 text-white text-[10px] font-bold uppercase tracking-widest rounded-xl hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20"
+          >
+            Retry Connection
+          </button>
+        )}
       </div>
     </header>
   );
