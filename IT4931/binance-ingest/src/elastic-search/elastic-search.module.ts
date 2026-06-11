@@ -4,6 +4,6 @@ import { ElasticSearchController } from './elastic-search.controller';
 
 @Module({
   providers: [ElasticSearchService],
-  controllers: [ElasticSearchController]
+  controllers: [ElasticSearchController],
 })
 export class ElasticSearchModule {}

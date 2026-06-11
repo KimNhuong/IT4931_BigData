@@ -1,11 +1,11 @@
-import { 
-    WebSocketGateway,
-    WebSocketServer,
-    SubscribeMessage,
-    MessageBody,
-    ConnectedSocket
-} from '@nestjs/websockets'; 
-import { Server, Socket } from 'socket.io'; 
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  MessageBody,
+  ConnectedSocket,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
 
 @WebSocketGateway({ cors: { origin: '*' } })
 export class OhlcLiveGateway {
@@ -14,7 +14,10 @@ export class OhlcLiveGateway {
 
   // Lắng nghe khi Frontend gửi lệnh muốn "sub" một cặp coin nào đó
   @SubscribeMessage('joinSymbol')
-  handleJoinSymbol(@MessageBody() symbol: string, @ConnectedSocket() client: Socket) {
+  handleJoinSymbol(
+    @MessageBody() symbol: string,
+    @ConnectedSocket() client: Socket,
+  ) {
     const roomName = `room_${symbol.toUpperCase()}`;
     client.join(roomName);
     console.log(`[WebSocket] Client ${client.id} joined ${roomName}`);

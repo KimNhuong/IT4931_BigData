@@ -8,10 +8,16 @@ import { ConfigModule } from '@nestjs/config';
 import { OhlcLiveModule } from './ohlc-live/ohlc-live.module';
 
 @Module({
-  imports: [KafkaModule, ElasticSearchModule, BinanceModule, ConfigModule.forRoot(
-    //extends here
-    {isGlobal: true,} 
-  ), OhlcLiveModule],
+  imports: [
+    KafkaModule,
+    ElasticSearchModule,
+    BinanceModule,
+    ConfigModule.forRoot(
+      //extends here
+      { isGlobal: true },
+    ),
+    OhlcLiveModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

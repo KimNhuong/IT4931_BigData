@@ -12,7 +12,9 @@ export class OhlcLiveService implements OnModuleInit {
     private readonly ohlcGateway: OhlcLiveGateway,
     private readonly configService: ConfigService,
   ) {
-    const mongoUri = this.configService.get<string>('MONGODB_URI') || 'mongodb://mongodb:27017/binance';
+    const mongoUri =
+      this.configService.get<string>('MONGODB_URI') ||
+      'mongodb://mongodb:27017/binance';
     this.mongoClient = new MongoClient(mongoUri);
   }
 
@@ -39,9 +41,12 @@ export class OhlcLiveService implements OnModuleInit {
 
       // MongoDB stores them in desc order, frontend needs them asc or handles them.
       // Usually, lightweight-charts needs them sorted by time.
-      return candles.reverse(); 
+      return candles.reverse();
     } catch (err) {
-      console.error(`[MongoDB] Error fetching historical data for ${symbol}:`, err);
+      console.error(
+        `[MongoDB] Error fetching historical data for ${symbol}:`,
+        err,
+      );
       return [];
     }
   }
@@ -60,6 +65,8 @@ export class OhlcLiveService implements OnModuleInit {
     // --- STEP 2: FLOW TO FRONTEND (WEBSOCKETS) ---
     this.ohlcGateway.broadcastCandle(symbol, data);
 
-    console.log(`[Service] Processed and Broadcasted real-time candle for ${symbol}`);
+    console.log(
+      `[Service] Processed and Broadcasted real-time candle for ${symbol}`,
+    );
   }
 }

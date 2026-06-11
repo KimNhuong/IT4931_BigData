@@ -1,61 +1,152 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { WebSocket } from 'ws';
 import { ClientKafka } from '@nestjs/microservices';
+import { MongoClient } from 'mongodb';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 
 const SYMBOLS = ['btcusdt', 'ethusdt', 'solusdt', 'bnbusdt', 'xrpusdt'];
 const BINANCE_WS_BASE_URL = 'wss://stream.binance.com:9443/ws';
+const BINANCE_REST_URL = 'https://api.binance.com/api/v3';
+
+interface AggTradeMessage {
+  e: string; // Event type
+  E: number; // Event time
+  s: string; // Symbol
+  a: number; // Aggregate trade ID
+  p: string; // Price
+  q: string; // Quantity
+  f: number; // First trade ID
+  l: number; // Last trade ID
+  T: number; // Trade time
+  m: boolean; // Is the buyer the market maker?
+  M: boolean; // Ignore
+}
 
 @Injectable()
 export class BinanceService implements OnModuleInit {
-    private ws!: WebSocket; 
+  private ws!: WebSocket;
+  private mongoClient: MongoClient;
+  private dbName: string = 'binance';
 
-    constructor(@Inject('KAFKA_SERVICE') private kafkaClient: ClientKafka) {}
+  constructor(
+    @Inject('KAFKA_SERVICE') private kafkaClient: ClientKafka,
+    private configService: ConfigService,
+  ) {
+    const mongoUri =
+      this.configService.get<string>('MONGODB_URI') ||
+      'mongodb://mongodb:27017/binance';
+    this.mongoClient = new MongoClient(mongoUri);
+  }
 
-    onModuleInit() { 
-        this.initBinanceSocket();  
+  async onModuleInit() {
+    try {
+      await this.mongoClient.connect();
+      console.log('[BinanceService] Connected to MongoDB');
+
+      // Seed historical data for all symbols
+      for (const symbol of SYMBOLS) {
+        await this.seedHistoricalData(symbol);
+      }
+    } catch (err) {
+      console.error('[BinanceService] MongoDB connection/seeding error:', err);
     }
 
-    initBinanceSocket() { 
-        const streams = SYMBOLS.map(s => `${s}@ticker`).join('/');
-        const url = `${BINANCE_WS_BASE_URL}/${streams}`;
-        
-        this.ws = new WebSocket(url); 
+    this.initBinanceSocket();
+  }
 
-        this.ws.on('message', (data) => { 
-            try {
-                const rawData = JSON.parse(data.toString()); 
+  async seedHistoricalData(symbol: string) {
+    try {
+      const db = this.mongoClient.db(this.dbName);
+      const collectionName = `OHLC_${symbol.toUpperCase()}`;
+      const collection = db.collection(collectionName);
 
-                const priceUpdate = { 
-                    symbol: rawData.s, // Symbol
-                    price: parseFloat(rawData.c), // Last Price
-                    volume: parseFloat(rawData.v), // Total Traded Base Asset Volume
-                    timestamp: rawData.E, // Event Time
-                    high: parseFloat(rawData.h),
-                    low: parseFloat(rawData.l),
-                    open: parseFloat(rawData.o),
-                }; 
+      // Check if we already have data
+      const count = await collection.countDocuments();
+      if (count > 0) {
+        console.log(
+          `[Seed] Data already exists for ${symbol}, skipping seeding.`,
+        );
+        return;
+      }
 
-                if (this.kafkaClient) { 
-                    this.kafkaClient.emit('binance-raw-ticks', priceUpdate);
-                }
-         
-            } catch (err) {
-                console.error('Error processing message:', err);
-            }
-        });
+      console.log(
+        `[Seed] Fetching historical data (1m klines) for ${symbol}...`,
+      );
+      const response = await axios.get<Array<Array<string | number>>>(
+        `${BINANCE_REST_URL}/klines`,
+        {
+          params: {
+            symbol: symbol.toUpperCase(),
+            interval: '1m',
+            limit: 1000,
+          },
+        },
+      );
 
-        this.ws.on('open', () => {
-            console.log('Connected to Binance WebSocket');
-        });
+      const klines = response.data.map((k) => ({
+        timestamp: k[0] as number,
+        open: parseFloat(k[1] as string),
+        high: parseFloat(k[2] as string),
+        low: parseFloat(k[3] as string),
+        close: parseFloat(k[4] as string),
+        volume: parseFloat(k[5] as string),
+        closeTime: k[6] as number,
+        symbol: symbol.toUpperCase(),
+      }));
 
-        this.ws.on('error', (error) => { 
-            console.error('Socket error:', error); 
-            setTimeout(() => this.initBinanceSocket(), 5000); 
-        });
-
-        this.ws.on('close', () => {
-            console.log('Binance WebSocket closed. Reconnecting...');
-            setTimeout(() => this.initBinanceSocket(), 5000);
-        });
+      await collection.insertMany(klines);
+      console.log(
+        `[Seed] Successfully seeded ${klines.length} klines for ${symbol}`,
+      );
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error(`[Seed] Error seeding data for ${symbol}:`, errorMessage);
     }
+  }
+
+  initBinanceSocket() {
+    const streams = SYMBOLS.map((s) => `${s}@aggTrade`).join('/');
+    const url = `${BINANCE_WS_BASE_URL}/${streams}`;
+
+    console.log(`Connecting to Binance WebSocket: ${url}`);
+    this.ws = new WebSocket(url);
+
+    this.ws.on('message', (data: Buffer) => {
+      try {
+        const rawData = JSON.parse(data.toString()) as AggTradeMessage;
+
+        // Process @aggTrade data
+        // Structure: https://binance-docs.github.io/apidocs/spot/en/#aggregate-trade-streams
+        const tradeUpdate = {
+          symbol: rawData.s, // Symbol
+          price: parseFloat(rawData.p), // Price
+          volume: parseFloat(rawData.q), // Quantity
+          timestamp: rawData.E, // Event Time
+          tradeId: rawData.a, // Aggregate trade ID
+          isMaker: rawData.m, // Is the buyer the market maker?
+        };
+
+        if (this.kafkaClient) {
+          this.kafkaClient.emit('binance-raw-ticks', tradeUpdate);
+        }
+      } catch (err) {
+        console.error('Error processing message:', err);
+      }
+    });
+
+    this.ws.on('open', () => {
+      console.log('Connected to Binance WebSocket (@aggTrade)');
+    });
+
+    this.ws.on('error', (error) => {
+      console.error('Socket error:', error);
+      setTimeout(() => this.initBinanceSocket(), 5000);
+    });
+
+    this.ws.on('close', () => {
+      console.log('Binance WebSocket closed. Reconnecting...');
+      setTimeout(() => this.initBinanceSocket(), 5000);
+    });
+  }
 }

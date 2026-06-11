@@ -6,7 +6,6 @@ const KAFKA_LIVE = process.env.KAFKA_LIVE || 'binance-live-ohlc';
 
 @Controller('ohlc-live')
 export class OhlcLiveController {
-
   constructor(private readonly ohlcLiveService: OhlcLiveService) {}
 
   @Get(':symbol')
