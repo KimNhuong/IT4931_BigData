@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { OhlcLiveGateway } from './ohlc-live.gateway';
-import { MongoClient, Collection } from 'mongodb';
+import { MongoClient } from 'mongodb';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -57,7 +57,7 @@ export class OhlcLiveService implements OnModuleInit {
     // --- STEP 1: CACHING METHOD (REDIS) ---
     // (Optional - kept for reference)
     try {
-      const redisKey = `ohlc_recent:${symbol.toUpperCase()}`;
+      // const redisKey = `ohlc_recent:${symbol.toUpperCase()}`;
     } catch (err) {
       console.error('[Redis Cache] Failed to update recent candles:', err);
     }
@@ -65,8 +65,11 @@ export class OhlcLiveService implements OnModuleInit {
     // --- STEP 2: FLOW TO FRONTEND (WEBSOCKETS) ---
     this.ohlcGateway.broadcastCandle(symbol, data);
 
-    console.log(
-      `[Service] Processed and Broadcasted real-time candle for ${symbol}`,
-    );
+    console.log(`[Service] Processed and Broadcasted real-time candle for ${symbol}`);
+  }
+
+  async handleIncomingTick(data: any) {
+    const symbol = data.symbol;
+    this.ohlcGateway.broadcastTick(symbol, data);
   }
 }

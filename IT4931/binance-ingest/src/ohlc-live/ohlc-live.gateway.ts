@@ -30,4 +30,12 @@ export class OhlcLiveGateway {
     }
     this.server.to(roomName).emit('candle-update', candleData);
   }
+
+  broadcastTick(symbol: string, tickData: any) {
+    const roomName = `room_${symbol.toUpperCase()}`;
+    if (!this.server) {
+      return;
+    }
+    this.server.to(roomName).emit('tick-update', tickData);
+  }
 }

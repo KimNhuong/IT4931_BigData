@@ -195,6 +195,8 @@ services:
       KAFKA_BROKER: kafka:29092
       KAFKA_GROUP_ID: binance-ingest-group
       KAFKA_TOPIC_PRICES: crypto-prices
+      KAFKA_LIVE: binance-live-ohlc
+      KAFKA_TICKS: binance-live-ticks
       # Elasticsearch Configuration
       ELASTICSEARCH_NODE: http://elasticsearch:9200
       # Redis Configuration

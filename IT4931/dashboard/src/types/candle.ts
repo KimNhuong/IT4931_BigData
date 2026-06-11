@@ -6,6 +6,16 @@ export interface LiveCandleDTO {
   low: number;
   close: number;
   volume: number;
+  vwap?: number;
+}
+
+export interface LiveTickDTO {
+  symbol: string;
+  price: number;
+  volume: number;
+  timestamp: number;
+  tradeId: number;
+  isMaker: boolean;
 }
 
 export interface CandleData {

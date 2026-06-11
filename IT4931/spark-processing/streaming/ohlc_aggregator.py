@@ -1,16 +1,14 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col, window, first, last, max, min, sum
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType
+from pyspark.sql.functions import from_json, col, window, first, last, max, min, sum, expr
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType, BooleanType
 import os
 
 # Configuration
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:29092")
-KAFKA_TOPIC = "binance-raw-ticks"
+KAFKA_RAW_TOPIC = "binance-raw-ticks"
+KAFKA_LIVE_TICKS_TOPIC = "binance-live-ticks"
+KAFKA_LIVE_OHLC_TOPIC = "binance-live-ohlc"
 CHECKPOINT_LOCATION = "/app/checkpoints/ohlc_aggregator"
-OUTPUT_MODE = "append"
-
-# Danh sách Coin cấu hình sẵn để tối ưu hiệu năng
-TRACKED_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
 
 # MongoDB Configuration
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongodb:27017")
@@ -22,30 +20,27 @@ MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "binance-data")
 
-# Schema of the incoming Kafka messages
+# Schema of the incoming Kafka messages (aggTrade)
 schema = StructType([
     StructField("symbol", StringType()),
     StructField("price", DoubleType()),
     StructField("volume", DoubleType()),
     StructField("timestamp", LongType()),
-    StructField("high", DoubleType()),
-    StructField("low", DoubleType()),
-    StructField("open", DoubleType())
+    StructField("tradeId", LongType()),
+    StructField("isMaker", BooleanType())
 ])
 
 def create_spark_session():
     return SparkSession.builder \
-        .appName("BinanceOHLCAggregator") \
+        .appName("BinanceRealTimeProcessor") \
         .config("spark.sql.shuffle.partitions", "2") \
         .config("spark.mongodb.write.connection.uri", MONGO_URI) \
         .config("spark.mongodb.write.database", MONGO_DATABASE) \
-        .config("spark.sql.streaming.minBatchesToRetain", "10") \
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT) \
         .config("spark.hadoop.fs.s3a.access.key", MINIO_ACCESS_KEY) \
         .config("spark.hadoop.fs.s3a.secret.key", MINIO_SECRET_KEY) \
         .config("spark.hadoop.fs.s3a.path.style.access", "true") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-        .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider") \
         .getOrCreate()
 
 def process_stream():
@@ -56,7 +51,7 @@ def process_stream():
     raw_df = spark.readStream \
         .format("kafka") \
         .option("kafka.bootstrap.servers", KAFKA_BROKER) \
-        .option("subscribe", KAFKA_TOPIC) \
+        .option("subscribe", KAFKA_RAW_TOPIC) \
         .option("startingOffsets", "latest") \
         .load()
 
@@ -66,22 +61,23 @@ def process_stream():
         .select("data.*") \
         .withColumn("event_time", (col("timestamp") / 1000).cast("timestamp"))
 
-    # Add Watermark (10 seconds delay tolerance)
-    windowed_df = parsed_df \
-        .withWatermark("event_time", "10 seconds")
+    # Watermark (5 seconds)
+    watermarked_df = parsed_df \
+        .withWatermark("event_time", "5 seconds")
 
-    # Aggregate OHLC (1 minute windows)
-    ohlc_df = windowed_df \
+    # 1. Sliding Window OHLC (1 min window, 2 sec slide) + VWAP
+    ohlc_sliding_df = watermarked_df \
         .groupBy(
             col("symbol"),
-            window(col("event_time"), "1 minute")
+            window(col("event_time"), "1 minute", "2 seconds")
         ) \
         .agg(
             first("price").alias("open"),
             max("price").alias("high"),
             min("price").alias("low"),
             last("price").alias("close"),
-            sum("volume").alias("volume")
+            sum("volume").alias("volume"),
+            expr("sum(price * volume) / sum(volume)").alias("vwap")
         ) \
         .select(
             col("symbol"),
@@ -90,68 +86,53 @@ def process_stream():
             col("high"),
             col("low"),
             col("close"),
-            col("volume")
+            col("volume"),
+            col("vwap")
         )
 
-    # Consolidated sink using foreachBatch
-    def save_to_sinks(batch_df, batch_id):
-        print(f"-------------------------------------------")
-        print(f"Batch: {batch_id}")
-        print(f"-------------------------------------------")
-        
-        # Chỉ gọi duy nhất lệnh .show() để kiểm tra dữ liệu trên console.
-        # Nếu batch rỗng, Spark sẽ in bảng trống và chạy tiếp cực nhanh mà không bị nghẽn mạng.
-        batch_df.show(5)
-        
-        # --- SINK 1: LƯU VÀO MONGODB (Xử lý Bulk - Lưu toàn bộ Coin vào 1 collection chung 'live_ohlc') ---
-        try:
-            print(f"--> Saving all symbols to MongoDB simultaneously...")
-            batch_df.write.format("mongodb") \
-                .mode("append") \
-                .option("database", MONGO_DATABASE) \
-                .option("collection", "live_ohlc") \
-                .save()
-            print("--> MongoDB Bulk Success! 🎉")
-        except Exception as mongo_err:
-            print(f"--> [ERROR] MongoDB Bulk failed: {str(mongo_err)}")
-        
-        # --- SINK 2: BẮN VÀO KAFKA (Xử lý Bulk 1 lần duy nhất cho NestJS) ---
-        try:
-            print(f"--> Pushing all symbols to Kafka topic: binance-live-ohlc")
-            kafka_payload_df = batch_df.selectExpr("CAST(timestamp AS STRING) AS key", "to_json(struct(*)) AS value")
-            kafka_payload_df.write \
-                .format("kafka") \
-                .option("kafka.bootstrap.servers", KAFKA_BROKER) \
-                .option("topic", "binance-live-ohlc") \
-                .save()
-            print("--> Kafka Bulk Success!")
-        except Exception as kafka_err:
-            print(f"--> [ERROR] Kafka Bulk failed: {str(kafka_err)}")
+    def save_all(batch_df, batch_id):
+        if batch_df.isEmpty():
+            return
 
-        # --- SINK 3: LƯU VÀO MINIO DATA LAKE (Sử dụng Partition động của Spark) ---
-        try:
-            print(f"--> Saving all symbols to MinIO Data Lake via partitionBy...")
-            # Lệnh .partitionBy("symbol") sẽ tự động băm nhỏ dữ liệu ra các thư mục coin trên MinIO
-            batch_df.write \
-                .mode("append") \
-                .format("parquet") \
-                .partitionBy("symbol") \
-                .save(f"s3a://{MINIO_BUCKET}/ohlc/")
-            print("--> MinIO Bulk Success!")
-        except Exception as minio_err:
-            print(f"--> [WARN] MinIO Bulk failed: {str(minio_err)}")
+        print(f"Batch {batch_id} - Processing {batch_df.count()} sliding windows")
+        
+        # Save to MongoDB
+        batch_df.write.format("mongodb") \
+            .mode("append") \
+            .option("collection", "live_ohlc_sliding") \
+            .save()
+            
+        # Push to Kafka (Live OHLC)
+        batch_df.selectExpr("to_json(struct(*)) AS value") \
+            .write \
+            .format("kafka") \
+            .option("kafka.bootstrap.servers", KAFKA_BROKER) \
+            .option("topic", KAFKA_LIVE_OHLC_TOPIC) \
+            .save()
 
-        print(f"Batch {batch_id} processed completely in parallel.")
-        print(f"-------------------------------------------")
-
-    query = ohlc_df.writeStream \
-        .foreachBatch(save_to_sinks) \
-        .outputMode("append") \
-        .trigger(processingTime='10 seconds') \
-        .option("checkpointLocation", CHECKPOINT_LOCATION) \
+    # Query for Sliding OHLC
+    ohlc_query = ohlc_sliding_df.writeStream \
+        .foreachBatch(save_all) \
+        .outputMode("update") \
+        .trigger(processingTime='2 seconds') \
+        .checkpointLocation(f"{CHECKPOINT_LOCATION}_ohlc") \
         .start()
 
-    query.awaitTermination()
+    # 2. Raw Ticks for Frontend (Flickering Price)
+    # We just pass them through to a "live-ticks" topic
+    ticks_query = parsed_df \
+        .selectExpr("to_json(struct(*)) AS value") \
+        .writeStream \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", KAFKA_BROKER) \
+        .option("topic", KAFKA_LIVE_TICKS_TOPIC) \
+        .option("checkpointLocation", f"{CHECKPOINT_LOCATION}_ticks") \
+        .start()
+
+    spark.streams.awaitAnyTermination()
+
+if __name__ == "__main__":
+    process_stream()
 
 if __name__ == "__main__":
     process_stream()

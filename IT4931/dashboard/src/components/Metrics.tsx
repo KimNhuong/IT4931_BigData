@@ -1,19 +1,20 @@
 import React from 'react';
-import type { LiveCandleDTO } from '../types/candle';
+import type { LiveCandleDTO, LiveTickDTO } from '../types/candle';
 import { formatPrice, formatCompactNumber } from '../utils/format';
 
 interface MetricsProps {
-  data: LiveCandleDTO | null;
+  candle: LiveCandleDTO | null;
+  tick: LiveTickDTO | null;
   isLoading?: boolean;
 }
 
-const Metrics: React.FC<MetricsProps> = ({ data, isLoading }) => {
+const Metrics: React.FC<MetricsProps> = ({ candle, tick, isLoading }) => {
   const items = [
-    { label: 'Open', value: formatPrice(data?.open), color: 'text-white' },
-    { label: 'High', value: formatPrice(data?.high), color: 'text-emerald-500' },
-    { label: 'Low', value: formatPrice(data?.low), color: 'text-rose-500' },
-    { label: 'Close', value: formatPrice(data?.close), color: 'text-white' },
-    { label: 'Volume', value: data?.volume ? formatCompactNumber(data.volume) : '---', color: 'text-blue-500' },
+    { label: 'Live Price', value: formatPrice(tick?.price || candle?.close), color: 'text-white' },
+    { label: 'High (1m)', value: formatPrice(candle?.high), color: 'text-emerald-500' },
+    { label: 'Low (1m)', value: formatPrice(candle?.low), color: 'text-rose-500' },
+    { label: 'VWAP', value: formatPrice(candle?.vwap), color: 'text-amber-500' },
+    { label: 'Volume', value: candle?.volume ? formatCompactNumber(candle.volume) : '---', color: 'text-blue-500' },
   ];
 
   return (

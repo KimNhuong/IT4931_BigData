@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { LiveCandleDTO } from '../types/candle';
+import type { LiveCandleDTO, LiveTickDTO } from '../types/candle';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const SOCKET_URL = import.meta.env.VITE_WS_URL || 'http://localhost:3000';
@@ -8,6 +8,7 @@ const SOCKET_URL = import.meta.env.VITE_WS_URL || 'http://localhost:3000';
 export const useSocket = (symbol: string) => {
   const socketRef = useRef<Socket | null>(null);
   const [latestCandle, setLatestCandle] = useState<LiveCandleDTO | null>(null);
+  const [latestTick, setLatestTick] = useState<LiveTickDTO | null>(null);
   const [historicalData, setHistoricalData] = useState<LiveCandleDTO[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,6 +58,10 @@ export const useSocket = (symbol: string) => {
     socket.on('candle-update', (data: LiveCandleDTO) => {
       setLatestCandle(data);
     });
+
+    socket.on('tick-update', (data: LiveTickDTO) => {
+      setLatestTick(data);
+    });
   };
 
   useEffect(() => {
@@ -76,8 +81,10 @@ export const useSocket = (symbol: string) => {
       console.log(`Switching to symbol: ${symbol}`);
       fetchHistoricalData(symbol);
       socketRef.current.emit('joinSymbol', symbol);
+      setLatestTick(null);
+      setLatestCandle(null);
     }
   }, [symbol, isConnected]);
 
-  return { latestCandle, historicalData, isConnected, isLoading, isConnecting, connectSocket };
+  return { latestCandle, latestTick, historicalData, isConnected, isLoading, isConnecting, connectSocket };
 };

@@ -3,6 +3,7 @@ import { EventPattern, Payload } from '@nestjs/microservices';
 import { OhlcLiveService } from './ohlc-live.service';
 
 const KAFKA_LIVE = process.env.KAFKA_LIVE || 'binance-live-ohlc';
+const KAFKA_TICKS = process.env.KAFKA_TICKS || 'binance-live-ticks';
 
 @Controller('ohlc-live')
 export class OhlcLiveController {
@@ -16,5 +17,10 @@ export class OhlcLiveController {
   @EventPattern(KAFKA_LIVE)
   async handleLiveOhlc(@Payload() data: any) {
     await this.ohlcLiveService.handleIncomingOhlc(data);
+  }
+
+  @EventPattern(KAFKA_TICKS)
+  async handleLiveTicks(@Payload() data: any) {
+    await this.ohlcLiveService.handleIncomingTick(data);
   }
 }
