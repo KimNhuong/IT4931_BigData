@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col, window, first, last, max, min, sum, expr
+from pyspark.sql.functions import from_json, col, window, first, last, max, min, sum
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType
 import os
 
@@ -45,6 +45,7 @@ def create_spark_session():
         .config("spark.hadoop.fs.s3a.secret.key", MINIO_SECRET_KEY) \
         .config("spark.hadoop.fs.s3a.path.style.access", "true") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+        .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider") \
         .getOrCreate()
 
 def process_stream():
@@ -97,51 +98,52 @@ def process_stream():
         print(f"-------------------------------------------")
         print(f"Batch: {batch_id}")
         print(f"-------------------------------------------")
-        if batch_df.isEmpty():
-            print("Batch is empty.")
-            return
-            
-        batch_df.show()
         
+        # Chỉ gọi duy nhất lệnh .show() để kiểm tra dữ liệu trên console.
+        # Nếu batch rỗng, Spark sẽ in bảng trống và chạy tiếp cực nhanh mà không bị nghẽn mạng.
+        batch_df.show(5)
+        
+        # --- SINK 1: LƯU VÀO MONGODB (Xử lý Bulk - Lưu toàn bộ Coin vào 1 collection chung 'live_ohlc') ---
         try:
-            print(f"Batch {batch_id}: Processing via static TRACKED_SYMBOLS list...")
-            
-            for symbol_name in TRACKED_SYMBOLS:
-                symbol_df = batch_df.filter(col("symbol") == symbol_name)
-                
-                if not symbol_df.rdd.isEmpty(): 
-                    # 1. LƯU VÀO MONGODB
-                    dynamic_collection_name = f"OHLC_{symbol_name}"
-                    print(f"--> Saving to MongoDB collection: {dynamic_collection_name}")
-                    symbol_df.write.format("mongodb") \
-                        .mode("append") \
-                        .option("database", MONGO_DATABASE) \
-                        .option("collection", dynamic_collection_name) \
-                        .save()
-                    
-                    # 2. BẮN VÀO KAFKA CHO NESTJS / FRONTEND
-                    print(f"--> Pushing to Kafka topic: binance-live-ohlc")
-                    kafka_payload_df = symbol_df.selectExpr("CAST(timestamp AS STRING) AS key", "to_json(struct(*)) AS value")
-                    kafka_payload_df.write \
-                        .format("kafka") \
-                        .option("kafka.bootstrap.servers", KAFKA_BROKER) \
-                        .option("topic", "binance-live-ohlc") \
-                        .save()
+            print(f"--> Saving all symbols to MongoDB simultaneously...")
+            batch_df.write.format("mongodb") \
+                .mode("append") \
+                .option("database", MONGO_DATABASE) \
+                .option("collection", "live_ohlc") \
+                .save()
+            print("--> MongoDB Bulk Success! 🎉")
+        except Exception as mongo_err:
+            print(f"--> [ERROR] MongoDB Bulk failed: {str(mongo_err)}")
+        
+        # --- SINK 2: BẮN VÀO KAFKA (Xử lý Bulk 1 lần duy nhất cho NestJS) ---
+        try:
+            print(f"--> Pushing all symbols to Kafka topic: binance-live-ohlc")
+            kafka_payload_df = batch_df.selectExpr("CAST(timestamp AS STRING) AS key", "to_json(struct(*)) AS value")
+            kafka_payload_df.write \
+                .format("kafka") \
+                .option("kafka.bootstrap.servers", KAFKA_BROKER) \
+                .option("topic", "binance-live-ohlc") \
+                .save()
+            print("--> Kafka Bulk Success!")
+        except Exception as kafka_err:
+            print(f"--> [ERROR] Kafka Bulk failed: {str(kafka_err)}")
 
-                    # 3. LƯU VÀO MINIO (DATA LAKE PARQUET)
-                    print(f"--> Saving to MinIO Data Lake for: {symbol_name}")
-                    symbol_df.write \
-                        .mode("append") \
-                        .format("parquet") \
-                        .partitionBy("symbol") \
-                        .save(f"s3a://{MINIO_BUCKET}/ohlc/")
-                    
-            print(f"Batch {batch_id} successfully processed (Mongo + Kafka + MinIO).")
+        # --- SINK 3: LƯU VÀO MINIO DATA LAKE (Sử dụng Partition động của Spark) ---
+        try:
+            print(f"--> Saving all symbols to MinIO Data Lake via partitionBy...")
+            # Lệnh .partitionBy("symbol") sẽ tự động băm nhỏ dữ liệu ra các thư mục coin trên MinIO
+            batch_df.write \
+                .mode("append") \
+                .format("parquet") \
+                .partitionBy("symbol") \
+                .save(f"s3a://{MINIO_BUCKET}/ohlc/")
+            print("--> MinIO Bulk Success!")
+        except Exception as minio_err:
+            print(f"--> [WARN] MinIO Bulk failed: {str(minio_err)}")
 
-        except Exception as e:
-            print(f"Error saving batch {batch_id} to destinations: {str(e)}")
+        print(f"Batch {batch_id} processed completely in parallel.")
+        print(f"-------------------------------------------")
 
-    # Start the streaming query with a single sink
     query = ohlc_df.writeStream \
         .foreachBatch(save_to_sinks) \
         .outputMode("append") \

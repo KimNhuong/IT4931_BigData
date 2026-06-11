@@ -4,40 +4,42 @@ Thay vì chia theo chức năng (Role), nhóm sẽ chia theo **Cặp tiền (Sym
 
 ## Phân chia Symbol
 - **Thành viên 1:** Phụ trách symbol **BTCUSDT** (Bitcoin) --> NhuongDK
-- **Thành viên 2:** Phụ trách symbol **ETHUSDT** (Ethereum)
-- **Thành viên 3:** Phụ trách symbol **SOLUSDT** (Solana)
-- **Thành viên 4:** Phụ trách symbol **BNBUSDT** (Binance Coin)
-- **Thành viên 5:** Phụ trách symbol **XRPUSDT** (Ripple)
+- **Thành viên 2:** Phụ trách symbol **ETHUSDT** (Ethereum) --> AnhNQ
+- **Thành viên 3:** Phụ trách symbol **SOLUSDT** (Solana) --> LoiT
+- **Thành viên 4:** Phụ trách symbol **BNBUSDT** (Binance Coin) --> NhanNX
+- **Thành viên 5:** Phụ trách symbol **XRPUSDT** (Ripple) --> DaiND
 
 ## Quy trình phát triển (Áp dụng cho mỗi Thành viên)
 
 Mỗi thành viên sẽ thực hiện 5 bước sau cho Symbol của mình:
 
 ### 1. Ingestion & Storage (Data Entry)
-- [ ] Cấu hình NestJS để subcribe WebSocket Binance cho symbol được giao.
-- [ ] Đẩy dữ liệu thô vào Kafka topic `binance-raw-ticks`.
-- [ ] Thiết kế và triển khai việc lưu trữ dữ liệu thô từ Kafka vào **MongoDB** và **MinIO** (định dạng **Parquet** - thỏa mãn yêu cầu Lưu trữ phân tán).
+- [ DONE ] Cấu hình NestJS để subcribe WebSocket Binance cho symbol được giao.
+- [ DONE ] Đẩy dữ liệu thô vào Kafka topic `binance-raw-ticks`.
+- [ DONE ] Thiết kế và triển khai việc lưu trữ dữ liệu thô từ Kafka vào **MongoDB** và **MinIO** (định dạng **Parquet** - thỏa mãn yêu cầu Lưu trữ phân tán).
 
 ### 2. Real-time Processing (Spark Streaming)
-- [ ] Viết Spark Structured Streaming job để tính toán OHLC (1m, 5m) cho symbol của mình.
-- [ ] Cài đặt logic phát hiện "Cá mập" (Whale Alert) dựa trên đột biến volume của symbol đó.
-- [ ] Xử lý **Watermarking** và **Checkpointing** để đảm bảo dữ liệu đến trễ và khả năng chịu lỗi.
+- [ DONE ] Viết Spark Structured Streaming job để tính toán OHLC (1m, 5m) cho symbol của mình.
+- [ DONE ] Cài đặt logic phát hiện "Cá mập" (Whale Alert) dựa trên đột biến volume của symbol đó.
+- [ 1/2 ] Xử lý **Watermarking** và **Checkpointing** để đảm bảo dữ liệu đến trễ và khả năng chịu lỗi.
+
+
 
 ### 3. Analytics & Backtesting (Spark Batch)
-- [ ] Viết Spark Batch job để truy vấn dữ liệu lịch sử của symbol từ MinIO/Parquet hoặc MongoDB.
+- [  ] Viết Spark Batch job để truy vấn dữ liệu lịch sử của symbol từ MinIO (định dạng Parquet) hoặc MongoDB.
 - [ ] Thực hiện **Broadcast Join** với bảng metadata symbol để làm giàu dữ liệu trước khi tính toán.
 - [ ] Triển khai chiến thuật trading (ví dụ: MA Crossover) sử dụng **Window Functions** và **Pivot** để tính PnL theo tháng.
 - [ ] Tích hợp **Spark MLlib** (ví dụ: Linear Regression) để dự đoán xu hướng giá ngắn hạn.
 
 ### 4. API & Backend Integration
-- [ ] Viết API NestJS để truy vấn dữ liệu aggregated từ **Elasticsearch**.
+- [ DONE ] Viết API NestJS để truy vấn dữ liệu aggregated từ **spark**.
 - [ ] Cấu hình **Redis** để lưu trạng thái giá mới nhất và các cảnh báo gần đây của symbol.
-- [ ] Xử lý Gateway WebSocket để đẩy dữ liệu real-time của symbol lên Dashboard.
+- [ DONE ] Xử lý Gateway WebSocket để đẩy dữ liệu real-time của symbol lên Dashboard.
 
 ### 5. Frontend & Visualization
-- [ ] Phát triển màn hình Dashboard riêng (hoặc một Tab) cho symbol của mình.
-- [ ] Tích hợp biểu đồ nến (Candlestick Chart) hiển thị dữ liệu từ Spark Streaming.
-- [ ] Hiển thị danh sách Whale Alerts và kết quả Backtest/ML Prediction trực quan.
+- [ DONE ] Phát triển màn hình Dashboard riêng (hoặc một Tab) cho symbol của mình.
+- [ DONE 1/2 ]  Tích hợp biểu đồ nến (Candlestick Chart) hiển thị dữ liệu từ Spark Streaming.
+- [ Cái 3 DONE Là cái này DONE ] Hiển thị danh sách Whale Alerts và kết quả Backtest/ML Prediction trực quan.
 
 ---
 

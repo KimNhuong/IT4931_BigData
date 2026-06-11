@@ -39,7 +39,7 @@ User ở giao diện Dashboard chọn cặp tiền, khoảng thời gian (ví d�
 
 Nhiệm vụ của NestJS API: Tiếp nhận HTTP Request. Thay vì thực hiện tính toán ngay (sẽ làm đơ toàn bộ Web Server), NestJS chỉ làm 2 việc cực nhanh:
 
-Tạo một bản ghi trong Database (PostgreSQL/MongoDB) với trạng thái status: "PENDING".
+Tạo một bản ghi trong Database (MongoDB) với trạng thái status: "PENDING".
 
 Bắn một Event chứa thông tin Job (Cặp tiền, Ngày bắt đầu/kết thúc, Thuật toán) vào Kafka topic binance-backtest-jobs.
 
