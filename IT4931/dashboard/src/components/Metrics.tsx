@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import type { LiveCandleDTO, LiveTickDTO } from '../types/candle';
 import { formatPrice, formatCompactNumber } from '../utils/format';
 
@@ -9,8 +9,30 @@ interface MetricsProps {
 }
 
 const Metrics: React.FC<MetricsProps> = ({ candle, tick, isLoading }) => {
+  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
+  const currentPrice = tick?.price || candle?.close;
+  const prevPriceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (currentPrice !== undefined && prevPriceRef.current !== null) {
+      if (currentPrice > prevPriceRef.current) {
+        setFlash('up');
+      } else if (currentPrice < prevPriceRef.current) {
+        setFlash('down');
+      }
+      
+      const timer = setTimeout(() => setFlash(null), 300);
+      return () => clearTimeout(timer);
+    }
+    if (currentPrice !== undefined) {
+      prevPriceRef.current = currentPrice;
+    }
+  }, [currentPrice]);
+
+  const priceColor = flash === 'up' ? 'text-emerald-500' : flash === 'down' ? 'text-rose-500' : 'text-white';
+
   const items = [
-    { label: 'Live Price', value: formatPrice(tick?.price || candle?.close), color: 'text-white' },
+    { label: 'Live Price', value: formatPrice(currentPrice), color: priceColor },
     { label: 'High (1m)', value: formatPrice(candle?.high), color: 'text-emerald-500' },
     { label: 'Low (1m)', value: formatPrice(candle?.low), color: 'text-rose-500' },
     { label: 'VWAP', value: formatPrice(candle?.vwap), color: 'text-amber-500' },
@@ -28,7 +50,7 @@ const Metrics: React.FC<MetricsProps> = ({ candle, tick, isLoading }) => {
           {isLoading ? (
             <div className="h-7 w-24 bg-white/5 rounded-md animate-pulse mt-1" />
           ) : (
-            <p className={`text-lg font-mono font-bold tabular-nums ${item.color}`}>
+            <p className={`text-lg font-mono font-bold tabular-nums transition-colors duration-300 ${item.color}`}>
               {item.value}
             </p>
           )}

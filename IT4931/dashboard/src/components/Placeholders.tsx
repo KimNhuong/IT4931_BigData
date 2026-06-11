@@ -24,7 +24,7 @@ const Placeholders: React.FC = () => {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-8 bg-[#050505]">
       <PlaceholderCard title="Order Book" badge="On-Demand" />
       <PlaceholderCard title="7D Performance" />
-      <PlaceholderCard title="On-Chain Tracker" badge="v2.0" />
+      <PlaceholderCard title="Whale Alerts" badge="Live Stream" />
       <PlaceholderCard title="Backtest Engine" badge="Premium" />
     </div>
   );

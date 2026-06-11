@@ -115,7 +115,7 @@ def process_stream():
         .foreachBatch(save_all) \
         .outputMode("update") \
         .trigger(processingTime='2 seconds') \
-        .checkpointLocation(f"{CHECKPOINT_LOCATION}_ohlc") \
+        .option("checkpointLocation", f"{CHECKPOINT_LOCATION}_ohlc") \
         .start()
 
     # 2. Raw Ticks for Frontend (Flickering Price)

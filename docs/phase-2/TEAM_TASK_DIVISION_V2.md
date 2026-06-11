@@ -63,3 +63,44 @@ Mỗi thành viên sẽ thực hiện 5 bước sau cho Symbol của mình:
 - **Thỏa mãn yêu cầu bài tập lớn:** Vận dụng được Watermarking, Sliding Window, và xử lý Late Data một cách thuyết phục.
 
 **Last Updated**: 2026-06-11 (Updated to High-Frequency & Sliding Window Approach)
+
+
+ 1. Luồng 1: Raw Ticks (Cực nhanh) -> Dành cho "Flickering Price" (Nháy giá) & Whale Alerts
+   * Bản chất: Luồng này bắn thẳng từ Kafka -> NestJS Socket -> Frontend mà không qua Spark tính toán nặng (chỉ lọc).
+   * Cách xử lý trên UI:
+       * Chỉ cập nhật con số Current Price ở góc màn hình.
+       * Tạo hiệu ứng nháy màu Xanh/Đỏ (Flickering) mỗi khi giá thay đổi (như chúng ta vừa code ở file Metrics.tsx và Header.tsx).
+       * Bắt các tick có volume cực lớn để đưa vào widget Whale Alerts.
+   * Đáp ứng tiêu chí: Thể hiện trực quan đặc tính Velocity (tốc độ cao) của Big Data cho giảng viên thấy.
+
+  2. Luồng 2: Spark Sliding Window (Vừa phải) -> Dành cho vẽ biểu đồ nến (Morphing Candle)
+   * Bản chất: Spark sẽ gom các raw ticks lại bằng Sliding Window. Ví dụ: Cửa sổ rộng 1 phút, trượt (slide) mỗi 2 giây.
+       * Giây thứ 0: Tính OHLC từ giây 0 -> 60.
+       * Giây thứ 2: Tính OHLC từ giây 2 -> 62.
+       * Giây thứ 4: Tính OHLC từ giây 4 -> 64.
+   * Cách xử lý trên UI:
+       * Biểu đồ (Lightweight-charts) vẫn hiển thị nến ở khung thời gian 1 phút (Timeframe 1m).
+       * Tuy nhiên, thay vì đợi 60s mới vẽ 1 nến tĩnh, cứ mỗi 2 giây, Spark gửi về 1 bản cập nhật.
+       * Frontend sẽ dùng hàm update() để cập nhật lại chính cây nến hiện tại (như cách ta đã ép thời gian Math.floor(rawTimeSeconds / 60) *
+         60).
+       * Kết quả: Cây nến hiện tại sẽ "nhấp nhô", râu nến (High/Low) sẽ dài ra, thân nến (Open/Close) sẽ chuyển màu liên tục mỗi 2 giây.
+   * Đáp ứng tiêu chí @docs/GOAL.MD:
+       * Áp dụng thành công hàm Window Functions (Cửa sổ trượt) trong Spark.
+       * Xử lý được trạng thái phức tạp (Stateful processing).
+       * Nếu có tick đến trễ, Spark dùng Watermarking để cập nhật lại nến quá khứ một cách chính xác (Exactly-once).
+
+  Bài học kinh nghiệm (Lesson Learned) để ghi vào báo cáo
+
+  Cách xử lý này là một điểm nhấn tuyệt vời để bạn đưa vào mục II.4 Bài học kinh nghiệm trong báo cáo:
+
+  > Bài học: Xử lý nghẽn cổ chai (Bottleneck) ở Frontend khi hiển thị Real-time Data
+  >    Thách thức:* Nếu đẩy toàn bộ tick data (hàng ngàn msg/s) lên Frontend để vẽ biểu đồ, trình duyệt sẽ bị treo. Nếu dùng Tumbling Window 1
+  phút, trải nghiệm người dùng bị "giật cục", mất đi tính Real-time.
+  >    Giải pháp:* Tách luồng hiển thị làm 2. Sử dụng luồng raw ticks nhẹ nhàng để làm nháy giá text (DOM update rất rẻ). Sử dụng sức mạnh cụm
+  của Spark Streaming để tính toán trước Sliding Window (1 phút, trượt 2 giây), giúp Frontend chỉ phải render lại nến (Canvas/WebGL) mỗi 2
+  giây, tạo cảm giác nến "chuyển động mượt mà" (Morphing) mà vẫn tối ưu hiệu năng.
+
+  Tóm lại
+  Bạn đã đi đúng hướng thiết kế. Đừng cố nhét tick vào biểu đồ nến. 
+  Việc bạn cần làm là duy trì 2 socket: binance-live-ticks (cho số nháy liên tục) và binance-live-ohlc (cứ 2 giây update lại hình dáng cây nến
+  1 lần). Cách này vừa chuẩn kỹ thuật Big Data (áp dụng Sliding Window của Spark), vừa mang lại UI mượt mà như Binance thật.

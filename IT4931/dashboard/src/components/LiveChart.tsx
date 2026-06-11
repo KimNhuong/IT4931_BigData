@@ -13,6 +13,7 @@ const LiveChart: React.FC<LiveChartProps> = ({ symbol, latestCandle, historicalD
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const lastTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -69,7 +70,10 @@ const LiveChart: React.FC<LiveChartProps> = ({ symbol, latestCandle, historicalD
   // Handle historical data hydration
   useEffect(() => {
     if (candleSeriesRef.current && historicalData.length > 0) {
-      const formattedData = historicalData.map(item => ({
+      // Ensure historical data is strictly sorted by timestamp ascending
+      const sortedData = [...historicalData].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      
+      const formattedData = sortedData.map(item => ({
         time: Math.floor(new Date(item.timestamp).getTime() / 1000) as Time,
         open: item.open,
         high: item.high,
@@ -77,25 +81,46 @@ const LiveChart: React.FC<LiveChartProps> = ({ symbol, latestCandle, historicalD
         close: item.close,
       }));
       candleSeriesRef.current.setData(formattedData);
+      
+      // Store the very last timestamp to prevent back-tracking errors
+      if (formattedData.length > 0) {
+         lastTimeRef.current = formattedData[formattedData.length - 1].time as number;
+      }
     } else if (candleSeriesRef.current) {
         candleSeriesRef.current.setData([]);
+        lastTimeRef.current = 0;
     }
   }, [historicalData]);
 
   // Handle incoming live data
   useEffect(() => {
     if (latestCandle && candleSeriesRef.current) {
-      const time = Math.floor(new Date(latestCandle.timestamp).getTime() / 1000) as Time;
+      const rawTimeSeconds = Math.floor(new Date(latestCandle.timestamp).getTime() / 1000);
+      // Align to current minute to update the candle smoothly
+      let time = (Math.floor(rawTimeSeconds / 60) * 60) as number;
+      
+      // Lightweight charts throws "Cannot update oldest data" if we try to push a time 
+      // strictly less than the last data point's time. 
+      // If our rounded sliding window time happens to be older than the last hydrated time,
+      // we snap it to the last time to ensure chronological progression.
+      if (lastTimeRef.current && time < lastTimeRef.current) {
+          time = lastTimeRef.current;
+      }
       
       const update = {
-        time,
+        time: time as Time,
         open: latestCandle.open,
         high: latestCandle.high,
         low: latestCandle.low,
         close: latestCandle.close,
       };
 
-      candleSeriesRef.current.update(update);
+      try {
+        candleSeriesRef.current.update(update);
+        lastTimeRef.current = time;
+      } catch (err) {
+        console.warn("Chart update skipped due to chronological error:", err);
+      }
     }
   }, [latestCandle]);
 
