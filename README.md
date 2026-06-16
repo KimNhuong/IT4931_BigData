@@ -1,3 +1,11 @@
+---
+title: Binance Realtime Pipeline
+emoji: 🚀
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
 # IT4931 - Real-time Binance Big Data Platform
 
 A high-performance, real-time cryptocurrency price monitoring and data processing system built with **Apache Kafka**, **Elasticsearch**, **Redis**, and **Nest.js**.
