@@ -1,0 +1,24 @@
+name: Sync to Hugging Face Hub
+on:
+  push:
+    branches: [feat/WhaleAlerts] # Chạy khi bạn push vào nhánh main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true # Nếu bạn có file lớn
+
+      - name: Push to HF
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Cấu hình Git
+          git config --global user.email "KimNhuong@gmail.com"
+          git config --global user.name "Kim Nhuong"
+          
+          # Thêm remote HF và push
+          # Thay 'username/space-name' đúng với cái bạn tạo trên HF
+          git push --force https://DK123bk:$HF_TOKEN@huggingface.co/spaces/DK123bk/DockerSpark main

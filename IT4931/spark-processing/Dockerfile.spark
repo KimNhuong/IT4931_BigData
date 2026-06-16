@@ -3,18 +3,19 @@ FROM bitnamilegacy/spark:3.5.1
 USER root
 
 # Install dependencies if needed
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl unzip && rm -rf /var/lib/apt/lists/*
 
 # Pre-download common connectors (Kafka, MongoDB, S3)
-ENV SPARK_VERSION=3.5.0
+ENV SPARK_VERSION=3.5.1
 ENV HADOOP_VERSION=3.3.4
 ENV AWS_SDK_VERSION=1.12.262
 
 # Download JARs directly into Spark's jars directory
 RUN curl -L https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/${SPARK_VERSION}/spark-sql-kafka-0-10_2.12-${SPARK_VERSION}.jar -o /opt/bitnami/spark/jars/spark-sql-kafka-0-10_2.12-${SPARK_VERSION}.jar \
+    && curl -L https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_2.12/${SPARK_VERSION}/spark-token-provider-kafka-0-10_2.12-${SPARK_VERSION}.jar -o /opt/bitnami/spark/jars/spark-token-provider-kafka-0-10_2.12-${SPARK_VERSION}.jar \
     && curl -L https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.11.1/commons-pool2-2.11.1.jar -o /opt/bitnami/spark/jars/commons-pool2-2.11.1.jar \
-    && curl -L https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.5.0/kafka-clients-3.5.0.jar -o /opt/bitnami/spark/jars/kafka-clients-3.5.0.jar \
-    && curl -L https://repo1.maven.org/maven2/org/mongodb/spark/mongo-spark-connector_2.12/10.2.1/mongo-spark-connector_2.12-10.2.1.jar -o /opt/bitnami/spark/jars/mongo-spark-connector_2.12-10.2.1.jar \
+    && curl -L https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.5.1/kafka-clients-3.5.1.jar -o /opt/bitnami/spark/jars/kafka-clients-3.5.1.jar \
+    && curl -L https://repo1.maven.org/maven2/org/mongodb/spark/mongo-spark-connector_2.12/10.3.0/mongo-spark-connector_2.12-10.3.0.jar -o /opt/bitnami/spark/jars/mongo-spark-connector_2.12-10.3.0.jar \
     && curl -L https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_VERSION}/hadoop-aws-${HADOOP_VERSION}.jar -o /opt/bitnami/spark/jars/hadoop-aws-${HADOOP_VERSION}.jar \
     && curl -L https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar -o /opt/bitnami/spark/jars/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar
 

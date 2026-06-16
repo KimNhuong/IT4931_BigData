@@ -1,0 +1,37 @@
+# Sử dụng Bitnami Spark làm base (đã có sẵn Java và Spark)
+FROM bitnami/spark:3.4.1
+
+USER root
+
+# 1. Cài đặt Node.js và NPM
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs
+
+# 2. Thiết lập thư mục làm việc cho Backend (NestJS)
+WORKDIR /app/backend
+COPY IT4931/binance-ingest/package*.json ./
+RUN npm install
+COPY IT4931/binance-ingest/ .
+RUN npm run build
+
+# 3. Thiết lập thư mục làm việc cho Spark
+WORKDIR /app/spark
+COPY IT4931/spark-processing/ .
+# Cài đặt các thư viện Python cần thiết cho Spark
+RUN pip install pyspark kafka-python pymongo
+
+# 4. Cấu hình Port cho Hugging Face (Bắt buộc là 7860)
+ENV PORT=7860
+EXPOSE 7860
+
+# 5. Tạo script khởi chạy đồng thời
+RUN echo '#!/bin/bash \n\
+# Chạy NestJS ở background \n\
+cd /app/backend && node dist/main.js & \n\
+# Chạy Spark Job \n\
+cd /app/spark && spark-submit --master local[*] streaming/ohlc_aggregator.py \n\
+' > /app/run.sh
+RUN chmod +x /app/run.sh
+
+CMD ["/app/run.sh"]

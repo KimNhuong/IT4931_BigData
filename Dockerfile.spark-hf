@@ -1,0 +1,28 @@
+# Sử dụng image Spark (Đã cài sẵn Java & Python)
+FROM bitnami/spark:3.4.1
+
+USER root
+
+# 1. Cài đặt các thư viện phụ thuộc cho PySpark
+RUN pip install pyspark kafka-python pymongo
+
+# 2. Copy toàn bộ code xử lý Spark vào container
+WORKDIR /app/spark
+COPY IT4931/spark-processing/ /app/spark/
+
+# 3. Hugging Face Spaces yêu cầu Expose cổng 7860
+ENV PORT=7860
+EXPOSE 7860
+
+# 4. Script khởi chạy song song
+RUN echo '#!/bin/bash \n\
+echo "Starting Spark Streaming (Background)..." \n\
+spark-submit --master local[*] --packages org.apache.hadoop:hadoop-aws:3.3.4 streaming/ohlc_aggregator.py & \n\
+echo "Starting Placeholder Web Server (Foreground) on port $PORT..." \n\
+python -m http.server $PORT \n\
+' > /app/run.sh
+
+RUN chmod +x /app/run.sh
+
+# 5. Lệnh thực thi khi container khởi động
+CMD ["/app/run.sh"]

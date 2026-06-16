@@ -54,29 +54,6 @@ services:
     networks:
       - bigdata-network
 
-  # Elasticsearch (Data Storage & Indexing)
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
-    container_name: elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - xpack.security.enrollment.enabled=false
-      - xpack.ml.enabled=false
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    networks:
-      - bigdata-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
   # Redis (Caching & Sliding Windows)
   redis:
     image: redis:7-alpine
@@ -95,20 +72,20 @@ services:
       retries: 5
 
   # MongoDB (Historical Data Lake)
-  mongodb:
-    image: mongo:latest
-    container_name: mongodb
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    networks:
-      - bigdata-network
-    healthcheck:
-      test: ["CMD-SHELL", "echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # mongodb:
+  #   image: mongo:latest
+  #   container_name: mongodb
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #   networks:
+  #     - bigdata-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   # MinIO (Object Storage - S3 compatible, equivalent to HDFS)
   minio:
@@ -185,14 +162,44 @@ services:
     depends_on:
       kafka:
         condition: service_healthy  
-      mongodb:
-        condition: service_healthy
+      # mongodb:
+      #   condition: service_healthy
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: development
       # Kafka Configuration
-      KAFKA_BROKER: kafka:29092
+      KAFKA_BROKER: kafka-2cfc21f8-nhuongdk225372.g.aivencloud.com:23991
+      KAFKA_SASL_USERNAME: avnadmin
+      KAFKA_SASL_PASSWORD: ${KAFKA_SASL_PASSWORD:-""}
+      KAFKA_SASL_MECHANISM: PLAIN
+      KAFKA_CA_CERT: |
+        -----BEGIN CERTIFICATE-----
+        MIIEUDCCArigAwIBAgIUXxlNsxk6arJMslMsfrPH1p4tXDYwDQYJKoZIhvcNAQEM
+        BQAwQDE+MDwGA1UEAww1ZWJkN2YyYzMtOWY5Zi00MDk1LTg5YTEtZjg3YzNhZTQ0
+        MzRlIEdFTiAxIFByb2plY3QgQ0EwHhcNMjUxMTE5MDMzOTA3WhcNMzUxMTE3MDMz
+        OTA3WjBAMT4wPAYDVQQDDDVlYmQ3ZjJjMy05ZjlmLTQwOTUtODlhMS1mODdjM2Fl
+        NDQzNGUgR0VOIDEgUHJvamVjdCBDQTCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCC
+        AYoCggGBAK2g7RYx36Slq0Yr3hHDicHUYLQwkCcuM5ROGoU5yaMyFeDJs59vK0L0
+        rYZViwdcIlFrNngr5v2VAUWFZqTk68ab+SveI0eMJz2hMxeeqz1KgOdUt/KbNCgD
+        s+75+v3oXpbJyHw7w8qc3P2irmYdWlQ1G6anZQmyKIlCN4j5vvhn5wHNY92ZKhRW
+        e3PI3NL94tvgWRDvWabsJ2YfUDQLuN6RlV3iSTyblwObbbu8EaysOdE5micgeZga
+        YfyivhyGcYUXCmlTyZ1FXyIGwIE8BK0fGwwvYfeyTi3NEdbLfzLf5jlY5uTYdDA4
+        iyAhvm0BdstCpT6DZbJN3CZoR84qJXo4ZXRxucZjhQBzjLaF2q4E/QYVQG1pfX2f
+        PAH3cyZnlDXgjIgVecA55khAFWnqZGkJS802f9QD8WjTd+mg4440UGNoEnXrFKNQ
+        8NNOxr+hNlb6qlTplpCLsxcBZWq5nrRn19BwY55yJPH8mIsFZayWYV/ucGQtt6SH
+        9cUyTzlofwIDAQABo0IwQDAdBgNVHQ4EFgQUcUHLgUFw4rCFbOihfffZaVEQBg4w
+        EgYDVR0TAQH/BAgwBgEB/wIBADALBgNVHQ8EBAMCAQYwDQYJKoZIhvcNAQEMBQAD
+        ggGBAFhV8mgNDWly1oz+69clu7nfUfLk9k8sM38ey+4lGxv5yR1Sve0nrw+2TT3A
+        lNysFWIBp3X3Cbq1XhEiiApB7tuVmsviqxg1cvsJVBQOe5M0Zyij9RIbfo7GK8kM
+        LPI8uS2AP140UIx5QTF49qsrYhYRAksZR/5t7uw2s0XytVgr731uNmnCOnQXgaw9
+        UOFALY8bqcsYo7Cz9kxyEPf60JQIICfRxu71Rb7RcnIRdrJkzPAWRbNlXkvNtv4E
+        Xxu1U0W1CgMmEvlHMg/VOueTd09eddI7MOCVRmZdfSBTQNLlrsqSNkkrxvUzgI9o
+        +HN/3z5/LZySL02GhdMsSLpDKvRzoDYK/NgBiH/RpOMmDfiQJWHWmf2Tr/pghmxA
+        Cq/I1DfpRwWdq7vNwx94DLVwHIU2io0tLGejG8XUjCD7ObD1YtWGjI7J4dYizgcf
+        Vw3SZ4GM8K/ajekEZX169EGwsO2yL5zi+t365ajAGhMjq145TiEGfy8Wiq1n9V8o
+        1A7KFg==
+        -----END CERTIFICATE-----
       KAFKA_GROUP_ID: binance-ingest-group
       KAFKA_TOPIC_PRICES: crypto-prices
       KAFKA_LIVE: binance-live-ohlc
@@ -203,7 +210,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       # MongoDB Configuration
-      MONGODB_URI: mongodb://mongodb:27017/binance
+      MONGODB_URI: ${MONGODB_URI:-"mongodb://mongodb:27017"}
       # Binance Configuration
       BINANCE_WS_URL: wss://stream.binance.com:9443/ws
       BINANCE_BTCUSDT_TICKER: wss://stream.binance.com:9443/ws/btcusdt@ticker 
@@ -221,8 +228,7 @@ networks:
     driver: bridge
 
 volumes:
-  elasticsearch_data:
   redis_data:
-  mongodb_data:
+  # mongodb_data:
   minio_data:
  

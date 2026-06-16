@@ -72,4 +72,10 @@ export class OhlcLiveService implements OnModuleInit {
     const symbol = data.symbol;
     this.ohlcGateway.broadcastTick(symbol, data);
   }
+
+  async handleIncomingWhaleAlert(data: any) {
+    const symbol = data.symbol;
+    this.ohlcGateway.broadcastWhaleAlert(symbol, data);
+    console.log(`[Service] 🐳 WHALE ALERT broadcasted for ${symbol}`);
+  }
 }
