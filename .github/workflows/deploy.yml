@@ -20,14 +20,20 @@ jobs:
             exit 1
           fi
           
+          # 1. Xóa toàn bộ lịch sử Git cũ để HF không bắt lỗi file nhị phân trong quá khứ
+          rm -rf .git
+          git init
+          git branch -M main
+          
           # Cấu hình Git
           git config --global user.email "KimNhuong@gmail.com"
           git config --global user.name "Kim Nhuong"
           
-          # Chỉ xóa các file ảnh nhị phân (.png) trong thư mục docs khỏi commit hiện tại để tránh lỗi trên Hugging Face
-          git rm -f docs/*.png || true
-          git commit -m "Remove binary files for HF deployment" || true
+          # 2. Xóa hẳn file .png ở thư mục làm việc và tạo 1 commit mới hoàn toàn sạch sẽ
+          rm -f docs/*.png || true
+          git add .
+          git commit -m "Deploy fresh state to Hugging Face without binary history"
           
           # Thêm remote HF và push
           # Thay 'username/space-name' đúng với cái bạn tạo trên HF
-          git push --force https://DK123bk:$HF_TOKEN@huggingface.co/spaces/DK123bk/DockerSpark HEAD:main
+          git push --force https://DK123bk:$HF_TOKEN@huggingface.co/spaces/DK123bk/DockerSpark main:main
