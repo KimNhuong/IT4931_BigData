@@ -9,7 +9,7 @@ from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:29092")
 KAFKA_SASL_USERNAME = os.getenv("KAFKA_SASL_USERNAME", "")
 KAFKA_SASL_PASSWORD = os.getenv("KAFKA_SASL_PASSWORD", "")
-KAFKA_SASL_MECHANISM = os.getenv("KAFKA_SASL_MECHANISM", "SCRAM-SHA-256")
+KAFKA_SASL_MECHANISM = os.getenv("KAFKA_SASL_MECHANISM", "SCRAM-SHA-256").upper()
 CA_CERT_TXT = os.getenv("KAFKA_CA_CERT", "").replace("\\n", "\n")
 CA_CERT_PATH = "/tmp/aiven_ca.pem"
 
