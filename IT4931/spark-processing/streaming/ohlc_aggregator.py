@@ -202,7 +202,4 @@ def process_stream():
     spark.streams.awaitAnyTermination()
 
 if __name__ == "__main__":
-    process_stream()mination()
-
-if __name__ == "__main__":
     process_stream()
