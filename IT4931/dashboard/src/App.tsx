@@ -45,7 +45,7 @@ function App() {
             </div>
           </div>
 
-          <Placeholders />
+          <Placeholders whaleAlerts={whaleAlerts} />
 
           <footer className="p-8 border-t border-[#1a1a1a] bg-[#050505] flex justify-between items-center text-[10px] text-gray-600 font-bold uppercase tracking-widest">
             <div>Nexus Terminal Dashboard © 2026</div>

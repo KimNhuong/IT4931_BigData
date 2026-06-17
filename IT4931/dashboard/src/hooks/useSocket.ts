@@ -62,6 +62,10 @@ export const useSocket = (symbol: string) => {
     socket.on('tick-update', (data: LiveTickDTO) => {
       setLatestTick(data);
     });
+
+    socket.on('whale-alert', (data: any) => {
+      setWhaleAlerts((prev) => [data, ...prev].slice(0, 50));
+    });
   };
 
   useEffect(() => {

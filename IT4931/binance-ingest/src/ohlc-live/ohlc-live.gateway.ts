@@ -38,4 +38,12 @@ export class OhlcLiveGateway {
     }
     this.server.to(roomName).emit('tick-update', tickData);
   }
+
+  broadcastWhaleAlert(symbol: string, alertData: any) {
+    if (!this.server) {
+      return;
+    }
+    // Gửi cho tất cả mọi người hoặc có thể giới hạn theo room nếu cần
+    this.server.emit('whale-alert', alertData);
+  }
 }

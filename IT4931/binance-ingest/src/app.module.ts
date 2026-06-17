@@ -6,6 +6,7 @@ import { ElasticSearchModule } from './elastic-search/elastic-search.module';
 import { BinanceModule } from './binance/binance.module';
 import { ConfigModule } from '@nestjs/config';
 import { OhlcLiveModule } from './ohlc-live/ohlc-live.module';
+import { BacktestModule } from './backtest/backtest.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { OhlcLiveModule } from './ohlc-live/ohlc-live.module';
       { isGlobal: true },
     ),
     OhlcLiveModule,
+    BacktestModule,
   ],
   controllers: [AppController],
   providers: [AppService],

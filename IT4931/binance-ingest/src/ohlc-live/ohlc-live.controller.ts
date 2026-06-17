@@ -4,6 +4,7 @@ import { OhlcLiveService } from './ohlc-live.service';
 
 const KAFKA_LIVE = process.env.KAFKA_LIVE || 'binance-live-ohlc';
 const KAFKA_TICKS = process.env.KAFKA_TICKS || 'binance-live-ticks';
+const KAFKA_WHALES = process.env.KAFKA_WHALES || 'binance-whale-alerts';
 
 @Controller('ohlc-live')
 export class OhlcLiveController {
@@ -22,5 +23,10 @@ export class OhlcLiveController {
   @EventPattern(KAFKA_TICKS)
   async handleLiveTicks(@Payload() data: any) {
     await this.ohlcLiveService.handleIncomingTick(data);
+  }
+
+  @EventPattern(KAFKA_WHALES)
+  async handleWhaleAlert(@Payload() data: any) {
+    await this.ohlcLiveService.handleIncomingWhaleAlert(data);
   }
 }
