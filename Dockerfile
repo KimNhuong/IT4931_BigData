@@ -25,12 +25,11 @@ ENV PORT=7860
 EXPOSE 7860
 
 # 5. Script khởi chạy song song cả 2 dịch vụ
-RUN echo '#!/bin/bash \n\
-echo "Starting NestJS Backend..." \n\
-cd /app/backend && node dist/main.js & \n\
-echo "Starting Spark Streaming..." \n\
-cd /app/spark && spark-submit --master local[*] --packages org.apache.hadoop:hadoop-aws:3.3.4 streaming/ohlc_aggregator.py \n\
-' > /app/run.sh
+RUN echo '#!/bin/bash' > /app/run.sh && \
+    echo 'echo "Starting NestJS Backend..."' >> /app/run.sh && \
+    echo 'cd /app/backend && node dist/main.js &' >> /app/run.sh && \
+    echo 'echo "Starting Spark Streaming..."' >> /app/run.sh && \
+    echo 'cd /app/spark && spark-submit --master local[*] --packages org.apache.hadoop:hadoop-aws:3.3.4 streaming/ohlc_aggregator.py' >> /app/run.sh
 RUN chmod +x /app/run.sh
 
 CMD ["/app/run.sh"]
