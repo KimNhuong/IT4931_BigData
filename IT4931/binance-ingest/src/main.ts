@@ -19,12 +19,13 @@ async function bootstrap() {
     transport: Transport.KAFKA,
     options: {
       client: {
+        clientId: 'nestjs-consumer-server',
         brokers: [process.env.KAFKA_BROKER || 'localhost:9092'],
         ssl: caCert ? { ca: [caCert], rejectUnauthorized: false } : (!!process.env.KAFKA_SASL_USERNAME ? { rejectUnauthorized: false } : false),
         sasl: saslConfig as any,
       },
       consumer: {
-        groupId: process.env.KAFKA_GROUP_ID || 'binance-consumer-group',
+        groupId: process.env.KAFKA_GROUP_ID || 'binance-ingest-group',
       },
     },
   });
