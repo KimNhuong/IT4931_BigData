@@ -39,8 +39,14 @@ schema = StructType([
 ])
 
 def create_spark_session():
+    packages = [
+        "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1",
+        "org.apache.hadoop:hadoop-aws:3.3.4",
+        "org.mongodb.spark:mongo-spark-connector_2.12:10.2.1"
+    ]
     return SparkSession.builder \
         .appName("BinanceRealTimeProcessor") \
+        .config("spark.jars.packages", ",".join(packages)) \
         .config("spark.sql.shuffle.partitions", "2") \
         .config("spark.mongodb.write.connection.uri", MONGO_URI) \
         .config("spark.mongodb.write.database", MONGO_DATABASE) \
