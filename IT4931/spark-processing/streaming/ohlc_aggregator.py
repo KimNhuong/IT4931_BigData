@@ -2,6 +2,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, window, first, last, max, min, sum, expr, year, month, dayofmonth
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType, BooleanType
 import os
+import time
 
 # ----------------------------------------------------
 # Xử lý KAFKA_CA_CERT từ Hugging Face Secret thành File vật lý
@@ -27,6 +28,8 @@ KAFKA_RAW_TOPIC = "binance-raw-ticks"
 KAFKA_LIVE_TICKS_TOPIC = "binance-live-ticks"
 KAFKA_LIVE_OHLC_TOPIC = "binance-live-ohlc"
 KAFKA_WHALE_ALERTS_TOPIC = "binance-whale-alerts"
+
+WHALE_THRESHOLD_USD = float(os.getenv("WHALE_THRESHOLD_USD", "100000"))
 
 # MongoDB Atlas (Ưu tiên dùng MONGODB_URI nếu MONGO_URI trống)
 MONGO_URI = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI") or ""
@@ -98,6 +101,7 @@ def process_stream():
         .options(**kafka_opts) \
         .option("subscribe", KAFKA_RAW_TOPIC) \
         .option("startingOffsets", "latest") \
+        .option("failOnDataLoss", "false") \
         .load()
 
     # Parse JSON
@@ -131,22 +135,40 @@ def process_stream():
     def save_all(batch_df, batch_id):
         if batch_df.isEmpty():
             return
-        print(f"Batch {batch_id} - Processing {batch_df.count()} sliding windows")
+        # Tối ưu: Lưu cache để không phải tính toán lại luồng cho mỗi lần ghi
+        batch_df.persist()
+        count = batch_df.count()
+        print(f"\n🚀 [START] Batch {batch_id} - Bắt đầu xử lý {count} bản ghi OHLC")
         
-        # Ghi Atlas
-        batch_df.write.format("mongodb") \
-            .mode("append") \
-            .option("database", MONGO_DATABASE) \
-            .option("collection", "live_ohlc_sliding") \
-            .save()
+        # 1. Đo tốc độ ghi MongoDB Atlas
+        start_mongo = time.time()
+        try:
+            batch_df.write.format("mongodb") \
+                .mode("append") \
+                .option("database", MONGO_DATABASE) \
+                .option("collection", "live_ohlc_sliding") \
+                .save()
+            duration_mongo = time.time() - start_mongo
+            print(f"✅ [MONGO SINK] Ghi thành công trong {duration_mongo:.2f}s (Tốc độ: {count/duration_mongo if duration_mongo > 0 else count:.2f} rec/s)")
+        except Exception as e:
+            print(f"❌ [LỖI MONGO] Phải chăng quên cấu hình Allow 0.0.0.0/0 trên Atlas? Lỗi: {e}")
             
-        # Ghi Kafka bằng việc mang theo cấu hình bảo mật đầy đủ
-        batch_df.selectExpr("to_json(struct(*)) AS value") \
-            .write \
-            .format("kafka") \
-            .options(**kafka_opts) \
-            .option("topic", KAFKA_LIVE_OHLC_TOPIC) \
-            .save()
+        # 2. Đo tốc độ ghi Kafka
+        start_kafka = time.time()
+        try:
+            batch_df.selectExpr("to_json(struct(*)) AS value") \
+                .write \
+                .format("kafka") \
+                .options(**kafka_opts) \
+                .option("topic", KAFKA_LIVE_OHLC_TOPIC) \
+                .save()
+            duration_kafka = time.time() - start_kafka
+            print(f"✅ [KAFKA SINK] Ghi thành công trong {duration_kafka:.2f}s (Tốc độ: {count/duration_kafka if duration_kafka > 0 else count:.2f} rec/s)")
+        except Exception as e:
+            print(f"❌ [LỖI KAFKA] Lỗi ghi topic: {e}")
+            
+        batch_df.unpersist()
+        print(f"🏁 [END] Hoàn thành Batch {batch_id}\n")
 
     # 1. Query OHLC
     ohlc_query = ohlc_sliding_df.writeStream \
@@ -187,6 +209,13 @@ def process_stream():
         .partitionBy("symbol", "year", "month", "day") \
         .option("path", f"s3a://{S3_BUCKET}/raw_ticks") \
         .option("checkpointLocation", f"{CHECKPOINT_LOCATION}_raw_storage") \
+        .start()
+
+    # 5. Query Debug (In dữ liệu ra Console để kiểm tra)
+    debug_console_query = parsed_df \
+        .writeStream \
+        .format("console") \
+        .option("truncate", "false") \
         .start()
 
     spark.streams.awaitAnyTermination()
