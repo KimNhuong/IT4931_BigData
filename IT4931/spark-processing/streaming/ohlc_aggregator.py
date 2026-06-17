@@ -7,7 +7,7 @@ import time
 # ----------------------------------------------------
 # Xử lý KAFKA_CA_CERT từ Hugging Face Secret thành File vật lý
 # ----------------------------------------------------
-CA_CERT_TXT = os.getenv("KAFKA_CA_CERT", "")
+CA_CERT_TXT = os.getenv("KAFKA_CA_CERT", "").replace("\\n", "\n")
 CA_CERT_PATH = "/tmp/aiven_ca.pem"
 
 if CA_CERT_TXT:
@@ -70,7 +70,10 @@ def create_spark_session():
         .getOrCreate()
 
 def get_kafka_options():
-    options = {"kafka.bootstrap.servers": KAFKA_BROKER}
+    options = {
+        "kafka.bootstrap.servers": KAFKA_BROKER,
+        "kafka.ssl.endpoint.identification.algorithm": "https"
+    }
     
     # Cấu hình bảo mật nâng cao kết hợp SASL và SSL CA Certificate cho Aiven
     if KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD:
@@ -87,6 +90,10 @@ def get_kafka_options():
         if os.path.exists(CA_CERT_PATH):
             options["kafka.ssl.truststore.location"] = CA_CERT_PATH
             options["kafka.ssl.truststore.type"] = "PEM"
+        else:
+            # Nếu không có file CA, có thể thử bỏ qua verify nếu môi trường cho phép (không khuyến khích)
+            # options["kafka.ssl.truststore.location"] = ...
+            pass
 
     return options
 

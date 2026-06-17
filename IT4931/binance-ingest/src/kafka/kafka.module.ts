@@ -14,7 +14,9 @@ const SASL_PASSWORD = process.env.KAFKA_SASL_PASSWORD;
 let caBuffer: Buffer | undefined;
 if (CA_CERT) {
   try {
-    caBuffer = Buffer.from(CA_CERT, 'utf8');
+    // Hugging Face Secrets might escape newlines as \n string
+    const formattedCert = CA_CERT.replace(/\\n/g, '\n');
+    caBuffer = Buffer.from(formattedCert, 'utf8');
     const tmpCertPath = path.join(os.tmpdir(), 'aiven_ca.pem');
     fs.writeFileSync(tmpCertPath, caBuffer);
   } catch (error) {
