@@ -92,7 +92,7 @@ def get_kafka_options():
 
 def process_stream():
     spark = create_spark_session()
-    spark.sparkContext.setLogLevel("INFO")
+    spark.sparkContext.setLogLevel("WARN")
     kafka_opts = get_kafka_options()
 
     # Read from Kafka
