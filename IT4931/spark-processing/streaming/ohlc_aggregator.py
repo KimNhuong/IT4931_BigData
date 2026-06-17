@@ -100,6 +100,7 @@ def process_stream():
         .options(**kafka_opts) \
         .option("subscribe", KAFKA_RAW_TOPIC) \
         .option("startingOffsets", "latest") \
+        .option("failOnDataLoss", "false") \
         .load()
 
     # Parse JSON
@@ -191,7 +192,17 @@ def process_stream():
         .option("checkpointLocation", f"{CHECKPOINT_LOCATION}_raw_storage") \
         .start()
 
+    # 5. Query Debug (In dữ liệu ra Console để kiểm tra)
+    debug_console_query = parsed_df \
+        .writeStream \
+        .format("console") \
+        .option("truncate", "false") \
+        .start()
+
     spark.streams.awaitAnyTermination()
+
+if __name__ == "__main__":
+    process_stream()mination()
 
 if __name__ == "__main__":
     process_stream()
