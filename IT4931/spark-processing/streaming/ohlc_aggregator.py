@@ -100,6 +100,7 @@ def process_stream():
         .options(**kafka_opts) \
         .option("subscribe", KAFKA_RAW_TOPIC) \
         .option("startingOffsets", "latest") \
+        .option("failOnDataLoss", "false") \
         .load()
 
     # Parse JSON
@@ -192,6 +193,9 @@ def process_stream():
         .start()
 
     spark.streams.awaitAnyTermination()
+
+if __name__ == "__main__":
+    process_stream()mination()
 
 if __name__ == "__main__":
     process_stream()
