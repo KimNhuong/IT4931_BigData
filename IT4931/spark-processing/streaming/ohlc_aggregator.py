@@ -28,6 +28,8 @@ KAFKA_LIVE_TICKS_TOPIC = "binance-live-ticks"
 KAFKA_LIVE_OHLC_TOPIC = "binance-live-ohlc"
 KAFKA_WHALE_ALERTS_TOPIC = "binance-whale-alerts"
 
+WHALE_THRESHOLD_USD = float(os.getenv("WHALE_THRESHOLD_USD", "100000"))
+
 # MongoDB Atlas (Ưu tiên dùng MONGODB_URI nếu MONGO_URI trống)
 MONGO_URI = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI") or ""
 MONGO_DATABASE = "binance"
