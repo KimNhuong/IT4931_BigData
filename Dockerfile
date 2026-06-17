@@ -29,7 +29,7 @@ RUN echo '#!/bin/bash' > /app/run.sh && \
     echo 'echo "Starting NestJS Backend..."' >> /app/run.sh && \
     echo 'cd /app/backend && node dist/main.js &' >> /app/run.sh && \
     echo 'echo "Starting Spark Streaming..."' >> /app/run.sh && \
-    echo 'cd /app/spark && spark-submit --master local[*] --packages org.apache.hadoop:hadoop-aws:3.3.4 streaming/ohlc_aggregator.py' >> /app/run.sh
+    echo 'cd /app/spark && spark-submit --master local[*] streaming/ohlc_aggregator.py' >> /app/run.sh
 RUN chmod +x /app/run.sh
 
 CMD ["/app/run.sh"]
