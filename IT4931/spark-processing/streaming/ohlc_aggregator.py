@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col, window, first, last, max, min, sum, expr, year, month, day
+from pyspark.sql.functions import from_json, col, window, first, last, max, min, sum, expr, year, month, dayofmonth
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType, BooleanType
 import os
 
@@ -81,7 +81,7 @@ def process_stream():
         .withColumn("event_time", (col("timestamp") / 1000).cast("timestamp")) \
         .withColumn("year", year(col("event_time"))) \
         .withColumn("month", month(col("event_time"))) \
-        .withColumn("day", day(col("event_time")))
+        .withColumn("day", dayofmonth(col("event_time")))
 
     # Watermark (5 seconds)
     watermarked_df = parsed_df \
