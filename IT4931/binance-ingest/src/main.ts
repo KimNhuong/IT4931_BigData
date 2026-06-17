@@ -19,19 +19,19 @@ async function bootstrap() {
     transport: Transport.KAFKA,
     options: {
       client: {
-        clientId: 'nestjs-consumer-server',
+        clientId: 'nestjs-consumer',
         brokers: [process.env.KAFKA_BROKER || 'localhost:9092'],
         ssl: caCert ? { ca: [caCert], rejectUnauthorized: false } : (!!process.env.KAFKA_SASL_USERNAME ? { rejectUnauthorized: false } : false),
         sasl: saslConfig as any,
       },
       consumer: {
-        groupId: process.env.KAFKA_GROUP_ID || 'binance-ingest-group',
+        groupId: process.env.KAFKA_GROUP_ID || 'binance-clean-group-v1',
       },
     },
   });
 
   // Khởi chạy cả HTTP (nếu có) và Microservice
   await app.startAllMicroservices();
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.PORT ?? 7860);
 }
 bootstrap();

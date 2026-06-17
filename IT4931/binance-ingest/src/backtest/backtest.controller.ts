@@ -11,8 +11,10 @@ export class BacktestController {
     return this.backtestService.createJob(body);
   }
 
+  /*
   @EventPattern('binance-backtest-results')
   async handleBacktestResult(@Payload() resultData: any) {
     await this.backtestService.handleResult(resultData);
   }
+  */
 }
