@@ -92,7 +92,7 @@ def get_kafka_options():
 
 def process_stream():
     spark = create_spark_session()
-    spark.sparkContext.setLogLevel("WARN")
+    spark.sparkContext.setLogLevel("INFO")
     kafka_opts = get_kafka_options()
 
     # Read from Kafka
@@ -100,7 +100,7 @@ def process_stream():
         .format("kafka") \
         .options(**kafka_opts) \
         .option("subscribe", KAFKA_RAW_TOPIC) \
-        .option("startingOffsets", "latest") \
+        .option("startingOffsets", "earliest") \
         .option("failOnDataLoss", "false") \
         .load()
 
@@ -221,4 +221,4 @@ def process_stream():
     spark.streams.awaitAnyTermination()
 
 if __name__ == "__main__":
-    process_stream()
+    process_stream()()
