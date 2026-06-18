@@ -1,0 +1,33 @@
+# Bỏ qua thư mục node_modules của cả NodeJS và NestJS
+**/node_modules
+
+# Bỏ qua các file logs và build của frontend/backend
+**/dist
+**/.next
+**/out
+
+# Bỏ qua môi trường ảo Python và cache
+**/venv
+**/.venv
+**/env
+**/.pytest_cache
+**/__pycache__
+**/.ipynb_checkpoints
+
+# Bỏ qua dữ liệu (nếu bạn có tải data của Binance về máy local)
+**/data
+**/*.csv
+# Bỏ qua các file JSON nhưng giữ lại các file cấu hình NestJS/NodeJS quan trọng
+**/*.json
+!**/package.json
+!**/package-lock.json
+!**/nest-cli.json
+!**/tsconfig.json
+!**/tsconfig.build.json
+**/*.parquet
+
+# Bỏ qua các file cấu hình Git và Docker hệ thống
+.git
+.gitignore
+.dockerignore
+**/.DS_Store
