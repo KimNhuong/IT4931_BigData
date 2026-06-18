@@ -4,10 +4,9 @@ import { ClientKafka } from '@nestjs/microservices';
 import { MongoClient } from 'mongodb';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const SYMBOLS = ['btcusdt', 'ethusdt', 'solusdt', 'bnbusdt', 'xrpusdt'];
-const BINANCE_WS_BASE_URL = 'wss://stream.binance.com:9443/ws';
-const BINANCE_REST_URL = 'https://api.binance.com/api/v3';
 
 interface AggTradeMessage {
   e: string; // Event type
@@ -28,6 +27,9 @@ export class BinanceService implements OnModuleInit {
   private ws!: WebSocket;
   private mongoClient: MongoClient;
   private dbName: string = 'binance';
+  private binanceWsBaseUrl: string;
+  private binanceRestUrl: string;
+  private proxyUrl: string | undefined;
 
   constructor(
     @Inject('KAFKA_SERVICE') private kafkaClient: ClientKafka,
@@ -37,6 +39,14 @@ export class BinanceService implements OnModuleInit {
       this.configService.get<string>('MONGODB_URI') ||
       'mongodb://mongodb:27017/binance';
     this.mongoClient = new MongoClient(mongoUri);
+
+    this.binanceWsBaseUrl =
+      this.configService.get<string>('BINANCE_WS_URL') ||
+      'wss://stream.binance.com:9443/ws';
+    this.binanceRestUrl =
+      this.configService.get<string>('BINANCE_REST_URL') ||
+      'https://api.binance.com/api/v3';
+    this.proxyUrl = this.configService.get<string>('BINANCE_PROXY_URL');
   }
 
   async onModuleInit() {
@@ -73,14 +83,20 @@ export class BinanceService implements OnModuleInit {
       console.log(
         `[Seed] Fetching historical data (1m klines) for ${symbol}...`,
       );
+
+      const httpsAgent = this.proxyUrl
+        ? new HttpsProxyAgent(this.proxyUrl)
+        : undefined;
+
       const response = await axios.get<Array<Array<string | number>>>(
-        `${BINANCE_REST_URL}/klines`,
+        `${this.binanceRestUrl}/klines`,
         {
           params: {
             symbol: symbol.toUpperCase(),
             interval: '1m',
             limit: 1000,
           },
+          httpsAgent,
         },
       );
 
@@ -107,10 +123,18 @@ export class BinanceService implements OnModuleInit {
 
   initBinanceSocket() {
     const streams = SYMBOLS.map((s) => `${s}@aggTrade`).join('/');
-    const url = `${BINANCE_WS_BASE_URL}/${streams}`;
+    const url = `${this.binanceWsBaseUrl}/${streams}`;
 
     console.log(`Connecting to Binance WebSocket: ${url}`);
-    this.ws = new WebSocket(url);
+    if (this.proxyUrl) {
+      console.log(`Using proxy: ${this.proxyUrl}`);
+    }
+
+    const wsOptions = this.proxyUrl
+      ? { agent: new HttpsProxyAgent(this.proxyUrl) }
+      : {};
+
+    this.ws = new WebSocket(url, wsOptions);
 
     this.ws.on('message', (data: Buffer) => {
       try {

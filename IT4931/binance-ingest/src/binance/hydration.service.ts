@@ -4,11 +4,14 @@ import axios from 'axios';
 import * as unzipper from 'unzipper';
 import { parse } from 'csv-parse';
 import { format, addDays, isBefore, parseISO } from 'date-fns';
+import { ConfigService } from '@nestjs/config';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 @Injectable()
 export class HydrationService {
   constructor(
     @Inject('KAFKA_SERVICE') private readonly kafkaClient: ClientKafka,
+    private configService: ConfigService,
   ) {}
 
   async hydrateHistoricalData(symbol: string, startDate: string, endDate: string) {
@@ -28,6 +31,8 @@ export class HydrationService {
 
   private async processDay(symbol: string, date: string) {
     const url = `https://data.binance.vision/data/spot/daily/aggTrades/${symbol}/${symbol}-aggTrades-${date}.zip`;
+    const proxyUrl = this.configService.get<string>('BINANCE_PROXY_URL');
+    const httpsAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
     
     try {
       console.log(`[Hydration] Processing ${date} from ${url}`);
@@ -35,6 +40,7 @@ export class HydrationService {
         method: 'get',
         url: url,
         responseType: 'stream',
+        httpsAgent,
       });
 
       return new Promise((resolve, reject) => {
@@ -70,3 +76,4 @@ export class HydrationService {
     }
   }
 }
+
