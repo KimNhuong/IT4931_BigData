@@ -131,7 +131,7 @@ export class BinanceService implements OnModuleInit {
     }
 
     const wsOptions = this.proxyUrl
-      ? { agent: new HttpsProxyAgent(this.proxyUrl) }
+      ? { agent: new HttpsProxyAgent(this.proxyUrl) as any }
       : {};
 
     this.ws = new WebSocket(url, wsOptions);
