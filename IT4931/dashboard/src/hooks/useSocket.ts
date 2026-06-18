@@ -57,14 +57,17 @@ export const useSocket = (symbol: string) => {
     });
 
     socket.on('candle-update', (data: LiveCandleDTO) => {
+      console.log('[WebSocket] Received candle-update:', data);
       setLatestCandle(data);
     });
 
     socket.on('tick-update', (data: LiveTickDTO) => {
+      console.log('[WebSocket] Received tick-update:', data);
       setLatestTick(data);
     });
 
     socket.on('whale-alert', (data: any) => {
+      console.log('[WebSocket] Received whale-alert:', data);
       setWhaleAlerts((prev) => [data, ...prev].slice(0, 50));
     });
   };

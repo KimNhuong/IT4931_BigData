@@ -65,17 +65,18 @@ export class OhlcLiveService implements OnModuleInit {
     // --- STEP 2: FLOW TO FRONTEND (WEBSOCKETS) ---
     this.ohlcGateway.broadcastCandle(symbol, data);
 
-    console.log(`[Service] Processed and Broadcasted real-time candle for ${symbol}`);
+    console.log(`[Service] Processed and Broadcasted real-time candle for ${symbol} - Open: ${data.open}, High: ${data.high}, Low: ${data.low}, Close: ${data.close}, Vol: ${data.volume}`);
   }
 
   async handleIncomingTick(data: any) {
     const symbol = data.symbol;
     this.ohlcGateway.broadcastTick(symbol, data);
+    console.log(`[Service] Broadcasted real-time tick for ${symbol} - Price: ${data.price}, Vol: ${data.volume}`);
   }
 
   async handleIncomingWhaleAlert(data: any) {
     const symbol = data.symbol;
     this.ohlcGateway.broadcastWhaleAlert(symbol, data);
-    console.log(`[Service] 🐳 WHALE ALERT broadcasted for ${symbol}`);
+    console.log(`[Service] 🐳 WHALE ALERT broadcasted for ${symbol} - Price: ${data.price}, Vol: ${data.volume}`);
   }
 }
