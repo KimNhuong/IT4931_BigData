@@ -6,6 +6,7 @@ spark-submit \
   --conf spark.driver.extraClassPath=/app/jars/hadoop-aws-3.3.4.jar:/app/jars/aws-java-sdk-bundle-1.12.262.jar \
   --conf spark.executor.extraClassPath=/app/jars/hadoop-aws-3.3.4.jar:/app/jars/aws-java-sdk-bundle-1.12.262.jar \
   /app/streaming/ohlc_aggregator.py
+redis-server --daemonize yes
 
 #run cmd:  docker exec -it spark-master /app/run-aggregator.sh --> Muốn spark thực thi lệnh thì 
 # bao ai gen lenh, lay file sau day de chay script: wget

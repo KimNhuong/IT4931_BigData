@@ -73,13 +73,21 @@ const LiveChart: React.FC<LiveChartProps> = ({ symbol, latestCandle, historicalD
       // Ensure historical data is strictly sorted by timestamp ascending
       const sortedData = [...historicalData].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       
-      const formattedData = sortedData.map(item => ({
-        time: Math.floor(new Date(item.timestamp).getTime() / 1000) as Time,
-        open: item.open,
-        high: item.high,
-        low: item.low,
-        close: item.close,
-      }));
+      const formattedData = sortedData
+        .filter(item => 
+          item.open !== null && item.open !== undefined &&
+          item.high !== null && item.high !== undefined &&
+          item.low !== null && item.low !== undefined &&
+          item.close !== null && item.close !== undefined
+        )
+        .map(item => ({
+          time: Math.floor(new Date(item.timestamp).getTime() / 1000) as Time,
+          open: Number(item.open),
+          high: Number(item.high),
+          low: Number(item.low),
+          close: Number(item.close),
+        }));
+
       candleSeriesRef.current.setData(formattedData);
       
       // Store the very last timestamp to prevent back-tracking errors
@@ -95,6 +103,16 @@ const LiveChart: React.FC<LiveChartProps> = ({ symbol, latestCandle, historicalD
   // Handle incoming live data
   useEffect(() => {
     if (latestCandle && candleSeriesRef.current) {
+      if (
+        latestCandle.open === null || latestCandle.open === undefined ||
+        latestCandle.high === null || latestCandle.high === undefined ||
+        latestCandle.low === null || latestCandle.low === undefined ||
+        latestCandle.close === null || latestCandle.close === undefined
+      ) {
+        console.warn("Skipping chart update due to null/undefined values in latestCandle:", latestCandle);
+        return;
+      }
+
       const rawTimeSeconds = Math.floor(new Date(latestCandle.timestamp).getTime() / 1000);
       // Align to current minute to update the candle smoothly
       let time = (Math.floor(rawTimeSeconds / 60) * 60) as number;
@@ -109,10 +127,10 @@ const LiveChart: React.FC<LiveChartProps> = ({ symbol, latestCandle, historicalD
       
       const update = {
         time: time as Time,
-        open: latestCandle.open,
-        high: latestCandle.high,
-        low: latestCandle.low,
-        close: latestCandle.close,
+        open: Number(latestCandle.open),
+        high: Number(latestCandle.high),
+        low: Number(latestCandle.low),
+        close: Number(latestCandle.close),
       };
 
       try {

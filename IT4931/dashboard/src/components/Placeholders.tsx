@@ -72,12 +72,12 @@ const BacktestPanel: React.FC = () => {
           Premium
         </span>
       </div>
-      
+
       <div className="space-y-4 text-sm flex-1">
         <div>
           <label className="block text-[10px] text-gray-500 uppercase mb-1">Symbol</label>
-          <select 
-            value={symbol} 
+          <select
+            value={symbol}
             onChange={e => setSymbol(e.target.value)}
             className="w-full bg-black border border-[#1a1a1a] text-white p-2 rounded focus:outline-none focus:border-blue-500"
           >
@@ -88,8 +88,8 @@ const BacktestPanel: React.FC = () => {
         </div>
         <div>
           <label className="block text-[10px] text-gray-500 uppercase mb-1">Strategy</label>
-          <select 
-            value={strategy} 
+          <select
+            value={strategy}
             onChange={e => setStrategy(e.target.value)}
             className="w-full bg-black border border-[#1a1a1a] text-white p-2 rounded focus:outline-none focus:border-blue-500"
           >
@@ -97,13 +97,13 @@ const BacktestPanel: React.FC = () => {
             <option value="RSI Divergence">RSI Divergence</option>
           </select>
         </div>
-        
+
         {status === 'PENDING' && (
           <div className="text-center text-blue-500 text-xs animate-pulse py-2">
             Running distributed backtest...
           </div>
         )}
-        
+
         {status === 'DONE' && metrics && (
           <div className="bg-black/50 p-3 rounded border border-[#1a1a1a] space-y-2">
             <div className="flex justify-between">
@@ -120,7 +120,7 @@ const BacktestPanel: React.FC = () => {
         )}
       </div>
 
-      <button 
+      <button
         onClick={runBacktest}
         disabled={status === 'PENDING'}
         className="w-full mt-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-widest py-2 rounded transition-colors"
@@ -140,7 +140,7 @@ const WhaleAlerts: React.FC<{ alerts: any[] }> = ({ alerts }) => {
           Live Stream
         </span>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar max-h-[250px]">
         {alerts.length === 0 ? (
           <div className="h-full flex items-center justify-center border border-dashed border-[#1a1a1a] rounded-lg">
@@ -204,12 +204,12 @@ const HydrationPanel: React.FC = () => {
           Zero-Disk ETL
         </span>
       </div>
-      
+
       <div className="space-y-4 text-sm flex-1">
         <div>
           <label className="block text-[10px] text-gray-500 uppercase mb-1">Symbol</label>
-          <select 
-            value={symbol} 
+          <select
+            value={symbol}
             onChange={e => setSymbol(e.target.value)}
             className="w-full bg-black border border-[#1a1a1a] text-white p-2 rounded text-xs focus:outline-none focus:border-blue-500"
           >
@@ -220,18 +220,18 @@ const HydrationPanel: React.FC = () => {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="block text-[10px] text-gray-500 uppercase mb-1">Start Date</label>
-            <input 
-              type="date" 
-              value={startDate} 
+            <input
+              type="date"
+              value={startDate}
               onChange={e => setStartDate(e.target.value)}
               className="w-full bg-black border border-[#1a1a1a] text-white p-1 rounded text-[10px] focus:outline-none focus:border-blue-500"
             />
           </div>
           <div>
             <label className="block text-[10px] text-gray-500 uppercase mb-1">End Date</label>
-            <input 
-              type="date" 
-              value={endDate} 
+            <input
+              type="date"
+              value={endDate}
               onChange={e => setEndDate(e.target.value)}
               className="w-full bg-black border border-[#1a1a1a] text-white p-1 rounded text-[10px] focus:outline-none focus:border-blue-500"
             />
@@ -239,7 +239,7 @@ const HydrationPanel: React.FC = () => {
         </div>
       </div>
 
-      <button 
+      <button
         onClick={startHydration}
         disabled={loading}
         className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-[10px] font-bold uppercase tracking-widest py-2 rounded transition-colors"
@@ -254,7 +254,6 @@ const Placeholders: React.FC<PlaceholdersProps> = ({ whaleAlerts = [] }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-8 bg-[#050505]">
       <HydrationPanel />
-      <PlaceholderCard title="7D Performance" />
       <WhaleAlerts alerts={whaleAlerts} />
       <BacktestPanel />
     </div>

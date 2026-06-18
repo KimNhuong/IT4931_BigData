@@ -26,7 +26,7 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
   private mongoClient: MongoClient;
   private s3Client: S3Client;
   private dbName = 'binance';
-  private bucketName = 'binance-raw-ticks';
+  private bucketName: string;
 
   private tickBuffer: TradeUpdate[] = [];
   private readonly BUFFER_SIZE = 1000;
@@ -49,18 +49,34 @@ export class StorageService implements OnModuleInit, OnModuleDestroy {
       'mongodb://mongodb:27017/binance';
     this.mongoClient = new MongoClient(mongoUri);
 
-    this.s3Client = new S3Client({
-      endpoint:
-        this.configService.get<string>('MINIO_ENDPOINT') || 'http://minio:9000',
-      region: 'us-east-1',
-      credentials: {
-        accessKeyId:
-          this.configService.get<string>('MINIO_ROOT_USER') || 'minioadmin',
-        secretAccessKey:
-          this.configService.get<string>('MINIO_ROOT_PASSWORD') || 'minioadmin',
-      },
-      forcePathStyle: true,
-    });
+    this.bucketName = this.configService.get<string>('S3_BUCKET') || 'binance-raw-ticks';
+
+    const minioEndpoint = this.configService.get<string>('MINIO_ENDPOINT');
+
+    if (minioEndpoint) {
+      // --- MÔI TRƯỜNG LOCAL (DÙNG MINIO) ---
+      this.s3Client = new S3Client({
+        endpoint: minioEndpoint,
+        region: 'us-east-1',
+        credentials: {
+          accessKeyId:
+            this.configService.get<string>('MINIO_ROOT_USER') || 'minioadmin',
+          secretAccessKey:
+            this.configService.get<string>('MINIO_ROOT_PASSWORD') || 'minioadmin',
+        },
+        forcePathStyle: true,
+      });
+    } else {
+      // --- MÔI TRƯỜNG DEPLOY (DÙNG AWS S3 THẬT TẠI SINGAPORE) ---
+      this.s3Client = new S3Client({
+        region: this.configService.get<string>('AWS_REGION') || 'ap-southeast-1',
+        credentials: {
+          accessKeyId: this.configService.get<string>('AWS_ACCESS_KEY') || '',
+          secretAccessKey: this.configService.get<string>('AWS_SECRET_KEY') || '',
+        },
+        forcePathStyle: false,
+      });
+    }
   }
 
   async onModuleInit() {

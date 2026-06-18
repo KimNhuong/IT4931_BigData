@@ -4,10 +4,9 @@ import { ClientKafka } from '@nestjs/microservices';
 import { MongoClient } from 'mongodb';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const SYMBOLS = ['btcusdt', 'ethusdt', 'solusdt', 'bnbusdt', 'xrpusdt'];
-const BINANCE_WS_BASE_URL = 'wss://stream.binance.com:9443/ws';
-const BINANCE_REST_URL = 'https://api.binance.com/api/v3';
 
 interface AggTradeMessage {
   e: string; // Event type
@@ -28,6 +27,13 @@ export class BinanceService implements OnModuleInit {
   private ws!: WebSocket;
   private mongoClient: MongoClient;
   private dbName: string = 'binance';
+  private binanceWsBaseUrl: string;
+  private binanceRestUrl: string;
+  private proxyUrl: string | undefined;
+  // Buffer gom ticks trước khi emit Kafka (tránh timeout do quá nhiều requests)
+  private tickBuffer: any[] = [];
+  private flushInterval: NodeJS.Timeout | null = null;
+  private readonly FLUSH_INTERVAL_MS = 200; // Flush mỗi 200ms
 
   constructor(
     @Inject('KAFKA_SERVICE') private kafkaClient: ClientKafka,
@@ -37,6 +43,14 @@ export class BinanceService implements OnModuleInit {
       this.configService.get<string>('MONGODB_URI') ||
       'mongodb://mongodb:27017/binance';
     this.mongoClient = new MongoClient(mongoUri);
+
+    this.binanceWsBaseUrl =
+      this.configService.get<string>('BINANCE_WS_URL') ||
+      'wss://stream.binance.com:9443/ws';
+    this.binanceRestUrl =
+      this.configService.get<string>('BINANCE_REST_URL') ||
+      'https://api.binance.com/api/v3';
+    this.proxyUrl = this.configService.get<string>('BINANCE_PROXY_URL');
   }
 
   async onModuleInit() {
@@ -52,7 +66,34 @@ export class BinanceService implements OnModuleInit {
       console.error('[BinanceService] MongoDB connection/seeding error:', err);
     }
 
+    try {
+      console.log('Connecting to Kafka...');
+      await this.kafkaClient.connect();
+      console.log('Kafka connected successfully');
+    } catch (kafkaErr) {
+      console.error('Failed to connect to Kafka:', kafkaErr);
+    }
+
     this.initBinanceSocket();
+
+    // Khởi động flush interval: gom ticks và emit Kafka theo batch mỗi 200ms
+    this.flushInterval = setInterval(() => {
+      if (this.tickBuffer.length === 0) return;
+      const batch = [...this.tickBuffer];
+      this.tickBuffer = [];
+      // Chỉ emit tick mới nhất của mỗi symbol (lấy giá real-time)
+      const latestBySymbol = new Map<string, any>();
+      for (const tick of batch) {
+        latestBySymbol.set(tick.symbol, tick);
+      }
+      for (const tick of latestBySymbol.values()) {
+        try {
+          this.kafkaClient.emit('binance-raw-ticks', tick);
+        } catch (e) {
+          // bỏ qua nếu Kafka chưa sẵn sàng
+        }
+      }
+    }, this.FLUSH_INTERVAL_MS);
   }
 
   async seedHistoricalData(symbol: string) {
@@ -73,14 +114,20 @@ export class BinanceService implements OnModuleInit {
       console.log(
         `[Seed] Fetching historical data (1m klines) for ${symbol}...`,
       );
+
+      const httpsAgent = this.proxyUrl
+        ? new HttpsProxyAgent(this.proxyUrl)
+        : undefined;
+
       const response = await axios.get<Array<Array<string | number>>>(
-        `${BINANCE_REST_URL}/klines`,
+        `${this.binanceRestUrl}/klines`,
         {
           params: {
             symbol: symbol.toUpperCase(),
             interval: '1m',
             limit: 1000,
           },
+          httpsAgent,
         },
       );
 
@@ -107,10 +154,18 @@ export class BinanceService implements OnModuleInit {
 
   initBinanceSocket() {
     const streams = SYMBOLS.map((s) => `${s}@aggTrade`).join('/');
-    const url = `${BINANCE_WS_BASE_URL}/${streams}`;
+    const url = `${this.binanceWsBaseUrl}/${streams}`;
 
     console.log(`Connecting to Binance WebSocket: ${url}`);
-    this.ws = new WebSocket(url);
+    if (this.proxyUrl) {
+      console.log(`Using proxy: ${this.proxyUrl}`);
+    }
+
+    const wsOptions = this.proxyUrl
+      ? { agent: new HttpsProxyAgent(this.proxyUrl) as any }
+      : {};
+
+    this.ws = new WebSocket(url, wsOptions);
 
     this.ws.on('message', (data: Buffer) => {
       try {
@@ -128,7 +183,8 @@ export class BinanceService implements OnModuleInit {
         };
 
         if (this.kafkaClient) {
-          this.kafkaClient.emit('binance-raw-ticks', tradeUpdate);
+          // Đưa vào buffer thay vì emit trực tiếp
+          this.tickBuffer.push(tradeUpdate);
         }
       } catch (err) {
         console.error('Error processing message:', err);

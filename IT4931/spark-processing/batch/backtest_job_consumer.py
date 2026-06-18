@@ -7,11 +7,39 @@ from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 
 # Configuration
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:29092")
+KAFKA_SASL_USERNAME = os.getenv("KAFKA_SASL_USERNAME", "")
+KAFKA_SASL_PASSWORD = os.getenv("KAFKA_SASL_PASSWORD", "")
+KAFKA_SASL_MECHANISM = os.getenv("KAFKA_SASL_MECHANISM", "SCRAM-SHA-256").upper()
+CA_CERT_TXT = os.getenv("KAFKA_CA_CERT", "").replace("\\n", "\n")
+CA_CERT_PATH = "/tmp/aiven_ca.pem"
+
+if CA_CERT_TXT:
+    with open(CA_CERT_PATH, "w") as f:
+        f.write(CA_CERT_TXT)
+
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "binance-data")
 SYMBOL_METADATA_PATH = "/app/data/symbol_metadata.csv"
+
+def get_kafka_options():
+    options = {
+        "kafka.bootstrap.servers": KAFKA_BROKER,
+        "kafka.ssl.endpoint.identification.algorithm": "https"
+    }
+    if KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD:
+        options["kafka.security.protocol"] = "SASL_SSL"
+        options["kafka.sasl.mechanism"] = KAFKA_SASL_MECHANISM
+        if "SCRAM" in KAFKA_SASL_MECHANISM.upper():
+            options["kafka.sasl.jaas.config"] = f'org.apache.kafka.common.security.scram.ScramLoginModule required username="{KAFKA_SASL_USERNAME}" password="{KAFKA_SASL_PASSWORD}";'
+        else:
+            options["kafka.sasl.jaas.config"] = f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{KAFKA_SASL_USERNAME}" password="{KAFKA_SASL_PASSWORD}";'
+        
+        if os.path.exists(CA_CERT_PATH):
+            options["kafka.ssl.truststore.location"] = CA_CERT_PATH
+            options["kafka.ssl.truststore.type"] = "PEM"
+    return options
 
 def create_spark_session():
     return SparkSession.builder \
@@ -66,6 +94,7 @@ def calculate_strategy_performance(df, spark):
 
 def process_batch(df, epoch_id, spark):
     if df.count() > 0:
+        kafka_opts = get_kafka_options()
         jobs = df.collect()
         for job_row in jobs:
             job_data = job_row["data"]
@@ -104,13 +133,14 @@ def process_batch(df, epoch_id, spark):
             result_df = spark.createDataFrame([Row(value=json.dumps(result_payload))])
             result_df.write \
                 .format("kafka") \
-                .option("kafka.bootstrap.servers", KAFKA_BROKER) \
+                .options(**kafka_opts) \
                 .option("topic", "binance-backtest-results") \
                 .save()
             print(f"Job {job_id} result sent to Kafka")
 
 def run_consumer():
     spark = create_spark_session()
+    kafka_opts = get_kafka_options()
     
     # Định nghĩa schema cho Kafka Message
     schema = StructType([
@@ -122,7 +152,7 @@ def run_consumer():
     # Đọc Stream từ topic 'binance-backtest-jobs'
     kafka_df = spark.readStream \
         .format("kafka") \
-        .option("kafka.bootstrap.servers", KAFKA_BROKER) \
+        .options(**kafka_opts) \
         .option("subscribe", "binance-backtest-jobs") \
         .option("startingOffsets", "latest") \
         .load()

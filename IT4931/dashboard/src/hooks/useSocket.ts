@@ -10,6 +10,7 @@ export const useSocket = (symbol: string) => {
   const [latestCandle, setLatestCandle] = useState<LiveCandleDTO | null>(null);
   const [latestTick, setLatestTick] = useState<LiveTickDTO | null>(null);
   const [historicalData, setHistoricalData] = useState<LiveCandleDTO[]>([]);
+  const [whaleAlerts, setWhaleAlerts] = useState<any[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -56,14 +57,17 @@ export const useSocket = (symbol: string) => {
     });
 
     socket.on('candle-update', (data: LiveCandleDTO) => {
+      console.log('[WebSocket] Received candle-update:', data);
       setLatestCandle(data);
     });
 
     socket.on('tick-update', (data: LiveTickDTO) => {
+      console.log('[WebSocket] Received tick-update:', data);
       setLatestTick(data);
     });
 
     socket.on('whale-alert', (data: any) => {
+      console.log('[WebSocket] Received whale-alert:', data);
       setWhaleAlerts((prev) => [data, ...prev].slice(0, 50));
     });
   };
@@ -90,5 +94,5 @@ export const useSocket = (symbol: string) => {
     }
   }, [symbol, isConnected]);
 
-  return { latestCandle, latestTick, historicalData, isConnected, isLoading, isConnecting, connectSocket };
+  return { latestCandle, latestTick, historicalData, whaleAlerts, isConnected, isLoading, isConnecting, connectSocket };
 };
