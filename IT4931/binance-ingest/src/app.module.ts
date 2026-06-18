@@ -7,6 +7,7 @@ import { BinanceModule } from './binance/binance.module';
 import { ConfigModule } from '@nestjs/config';
 import { OhlcLiveModule } from './ohlc-live/ohlc-live.module';
 import { BacktestModule } from './backtest/backtest.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { BacktestModule } from './backtest/backtest.module';
     ),
     OhlcLiveModule,
     BacktestModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

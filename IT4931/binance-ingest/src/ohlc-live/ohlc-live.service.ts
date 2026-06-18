@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { OhlcLiveGateway } from './ohlc-live.gateway';
 import { MongoClient } from 'mongodb';
 import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class OhlcLiveService implements OnModuleInit {
@@ -11,6 +12,7 @@ export class OhlcLiveService implements OnModuleInit {
   constructor(
     private readonly ohlcGateway: OhlcLiveGateway,
     private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {
     const mongoUri =
       this.configService.get<string>('MONGODB_URI') ||
@@ -28,7 +30,21 @@ export class OhlcLiveService implements OnModuleInit {
   }
 
   async getHistoricalOHLC(symbol: string) {
+    const redisKey = `ohlc_recent:${symbol.toUpperCase()}`;
     try {
+      // Try to get from Redis Cache first
+      const cachedCandles = await this.redisService.getList<any>(redisKey);
+      if (cachedCandles && cachedCandles.length > 0) {
+        console.log(`[Redis Cache] Hit: Fetched ${cachedCandles.length} historical candles for ${symbol}`);
+        return cachedCandles;
+      }
+    } catch (redisErr) {
+      console.warn(`[Redis Cache] Error fetching list for ${symbol}, falling back to MongoDB:`, redisErr);
+    }
+
+    // Fallback to MongoDB
+    try {
+      console.log(`[MongoDB] Cache miss: Fetching historical data from DB for ${symbol}`);
       const db = this.mongoClient.db(this.dbName);
       const collectionName = `OHLC_${symbol.toUpperCase()}`;
       const collection = db.collection(collectionName);
@@ -39,9 +55,16 @@ export class OhlcLiveService implements OnModuleInit {
         .limit(200)
         .toArray();
 
-      // MongoDB stores them in desc order, frontend needs them asc or handles them.
-      // Usually, lightweight-charts needs them sorted by time.
-      return candles.reverse();
+      const sortedCandles = candles.reverse();
+
+      // Populate Redis Cache asynchronously
+      if (sortedCandles.length > 0) {
+        this.redisService.setList(redisKey, sortedCandles).catch(err => {
+          console.error('[Redis Cache] Failed to populate list:', err);
+        });
+      }
+
+      return sortedCandles;
     } catch (err) {
       console.error(
         `[MongoDB] Error fetching historical data for ${symbol}:`,
@@ -55,9 +78,10 @@ export class OhlcLiveService implements OnModuleInit {
     const symbol = data.symbol;
 
     // --- STEP 1: CACHING METHOD (REDIS) ---
-    // (Optional - kept for reference)
     try {
-      // const redisKey = `ohlc_recent:${symbol.toUpperCase()}`;
+      const redisKey = `ohlc_recent:${symbol.toUpperCase()}`;
+      // Push new candle to redis list, keeping max 200 items
+      await this.redisService.pushToList(redisKey, data, 200);
     } catch (err) {
       console.error('[Redis Cache] Failed to update recent candles:', err);
     }

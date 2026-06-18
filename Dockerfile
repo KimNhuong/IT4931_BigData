@@ -3,8 +3,8 @@ FROM bitnamilegacy/spark:3.4.1
 
 USER root
 
-# 1. Cài đặt Node.js để chạy Backend NestJS
-RUN apt-get update && apt-get install -y curl && \
+# 1. Cài đặt Node.js và Redis để chạy Backend NestJS & Cache
+RUN apt-get update && apt-get install -y curl redis-server && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs
 
@@ -26,6 +26,8 @@ EXPOSE 7860
 
 # 5. Script khởi chạy song song cả 2 dịch vụ
 RUN echo '#!/bin/bash' > /app/run.sh && \
+    echo 'echo "Starting Redis Server..."' >> /app/run.sh && \
+    echo 'redis-server --daemonize yes' >> /app/run.sh && \
     echo 'echo "Starting NestJS Backend..."' >> /app/run.sh && \
     echo 'cd /app/backend && node dist/main.js &' >> /app/run.sh && \
     echo 'echo "Starting Backtest Consumer..."' >> /app/run.sh && \
