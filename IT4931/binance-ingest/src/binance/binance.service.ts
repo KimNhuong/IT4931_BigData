@@ -30,6 +30,10 @@ export class BinanceService implements OnModuleInit {
   private binanceWsBaseUrl: string;
   private binanceRestUrl: string;
   private proxyUrl: string | undefined;
+  // Buffer gom ticks trước khi emit Kafka (tránh timeout do quá nhiều requests)
+  private tickBuffer: any[] = [];
+  private flushInterval: NodeJS.Timeout | null = null;
+  private readonly FLUSH_INTERVAL_MS = 200; // Flush mỗi 200ms
 
   constructor(
     @Inject('KAFKA_SERVICE') private kafkaClient: ClientKafka,
@@ -71,6 +75,25 @@ export class BinanceService implements OnModuleInit {
     }
 
     this.initBinanceSocket();
+
+    // Khởi động flush interval: gom ticks và emit Kafka theo batch mỗi 200ms
+    this.flushInterval = setInterval(() => {
+      if (this.tickBuffer.length === 0) return;
+      const batch = [...this.tickBuffer];
+      this.tickBuffer = [];
+      // Chỉ emit tick mới nhất của mỗi symbol (lấy giá real-time)
+      const latestBySymbol = new Map<string, any>();
+      for (const tick of batch) {
+        latestBySymbol.set(tick.symbol, tick);
+      }
+      for (const tick of latestBySymbol.values()) {
+        try {
+          this.kafkaClient.emit('binance-raw-ticks', tick);
+        } catch (e) {
+          // bỏ qua nếu Kafka chưa sẵn sàng
+        }
+      }
+    }, this.FLUSH_INTERVAL_MS);
   }
 
   async seedHistoricalData(symbol: string) {
@@ -160,7 +183,8 @@ export class BinanceService implements OnModuleInit {
         };
 
         if (this.kafkaClient) {
-          this.kafkaClient.emit('binance-raw-ticks', tradeUpdate);
+          // Đưa vào buffer thay vì emit trực tiếp
+          this.tickBuffer.push(tradeUpdate);
         }
       } catch (err) {
         console.error('Error processing message:', err);

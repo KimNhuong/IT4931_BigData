@@ -10,34 +10,34 @@ const TRACKED_SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"];
 
 function App() {
   const [activeSymbol, setActiveSymbol] = useState(TRACKED_SYMBOLS[0]);
-  const { latestCandle, latestTick, historicalData, isConnected, isLoading, isConnecting, connectSocket } = useSocket(activeSymbol);
+  const { latestCandle, latestTick, historicalData, whaleAlerts, isConnected, isLoading, isConnecting, connectSocket } = useSocket(activeSymbol);
 
   return (
     <div className="flex h-screen bg-black text-white font-sans selection:bg-blue-500/30 overflow-hidden">
-      <Sidebar 
-        symbols={TRACKED_SYMBOLS} 
-        activeSymbol={activeSymbol} 
-        onSelect={setActiveSymbol} 
+      <Sidebar
+        symbols={TRACKED_SYMBOLS}
+        activeSymbol={activeSymbol}
+        onSelect={setActiveSymbol}
       />
-      
+
       <main className="flex-1 flex flex-col min-w-0">
-        <Header 
-          symbol={activeSymbol} 
-          price={latestTick?.price || latestCandle?.close || null} 
-          isConnected={isConnected} 
+        <Header
+          symbol={activeSymbol}
+          price={latestTick?.price || latestCandle?.close || null}
+          isConnected={isConnected}
           isConnecting={isConnecting}
           onRetry={connectSocket}
         />
-        
+
         <div className="flex-1 overflow-y-auto scrollbar-hide">
           <Metrics candle={latestCandle} tick={latestTick} isLoading={isLoading} />
-          
+
           <div className="p-8">
             <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl overflow-hidden shadow-2xl shadow-blue-500/5">
               <div className="h-[500px]">
-                <LiveChart 
-                  symbol={activeSymbol} 
-                  latestCandle={latestCandle} 
+                <LiveChart
+                  symbol={activeSymbol}
+                  latestCandle={latestCandle}
                   historicalData={historicalData}
                   isLoading={isLoading}
                 />

@@ -53,8 +53,18 @@ const sslConfig =
                 },
               }),
           },
+          producer: {
+            // acks: 0 = fire-and-forget, không cần broker ack
+            // Phù hợp cho high-frequency tick data (~100 msg/s từ Binance)
+            // Không cần đảm bảo delivery cho từng tick riêng lẻ
+            allowAutoTopicCreation: true,
+          },
           consumer: {
             groupId: KAFKA_GROUP,
+          },
+          // Tăng timeout để chịu được latency của Aiven Cloud Kafka
+          run: {
+            autoCommit: true,
           },
         },
       },

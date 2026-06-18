@@ -10,6 +10,7 @@ export const useSocket = (symbol: string) => {
   const [latestCandle, setLatestCandle] = useState<LiveCandleDTO | null>(null);
   const [latestTick, setLatestTick] = useState<LiveTickDTO | null>(null);
   const [historicalData, setHistoricalData] = useState<LiveCandleDTO[]>([]);
+  const [whaleAlerts, setWhaleAlerts] = useState<any[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -90,5 +91,5 @@ export const useSocket = (symbol: string) => {
     }
   }, [symbol, isConnected]);
 
-  return { latestCandle, latestTick, historicalData, isConnected, isLoading, isConnecting, connectSocket };
+  return { latestCandle, latestTick, historicalData, whaleAlerts, isConnected, isLoading, isConnecting, connectSocket };
 };
