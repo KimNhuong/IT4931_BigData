@@ -15,7 +15,7 @@ let caBuffer: Buffer | undefined;
 if (CA_CERT) {
   try {
     // Hugging Face Secrets might escape newlines as \n string
-    const formattedCert = CA_CERT.replace(/\\n/g, '\n');
+    const formattedCert = CA_CERT.replace(/\\n/g, '\n').replace(/\r/g, '').trim();
     caBuffer = Buffer.from(formattedCert, 'utf8');
     const tmpCertPath = path.join(os.tmpdir(), 'aiven_ca.pem');
     fs.writeFileSync(tmpCertPath, caBuffer);

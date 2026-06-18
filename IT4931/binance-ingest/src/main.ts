@@ -13,7 +13,7 @@ async function bootstrap() {
     password: process.env.KAFKA_SASL_PASSWORD,
   } : undefined;
 
-  const caCert = process.env.KAFKA_CA_CERT ? process.env.KAFKA_CA_CERT.replace(/\\n/g, '\n') : undefined;
+  const caCert = process.env.KAFKA_CA_CERT ? process.env.KAFKA_CA_CERT.replace(/\\n/g, '\n').replace(/\r/g, '').trim() : undefined;
 
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.KAFKA,

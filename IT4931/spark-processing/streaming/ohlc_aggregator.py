@@ -7,13 +7,15 @@ import time
 # ----------------------------------------------------
 # Xử lý KAFKA_CA_CERT từ Hugging Face Secret thành File vật lý
 # ----------------------------------------------------
-CA_CERT_TXT = os.getenv("KAFKA_CA_CERT", "").replace("\\n", "\n")
+CA_CERT_TXT = os.getenv("KAFKA_CA_CERT", "").replace("\\n", "\n").replace("\r", "").strip()
 CA_CERT_PATH = "/tmp/aiven_ca.pem"
 
 if CA_CERT_TXT:
     # Ghi chuỗi cert từ secret ra một file tạm trong container
     with open(CA_CERT_PATH, "w") as f:
         f.write(CA_CERT_TXT)
+    with open(CA_CERT_PATH, "r") as f:
+        print(f"=== CONTENT OF {CA_CERT_PATH} ===\n{repr(f.read())}\n==================================")
     print(f"-> Đã khởi tạo thành công file chứng chỉ CA tại: {CA_CERT_PATH}")
 else:
     print("⚠️ CẢNH BÁO: Không tìm thấy KAFKA_CA_CERT trong môi trường!")
@@ -39,7 +41,7 @@ MONGO_DATABASE = "binance"
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY", "")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_KEY", "")
 S3_BUCKET = os.getenv("S3_BUCKET", "binance-data-it4931")
-CHECKPOINT_LOCATION = f"s3a://{S3_BUCKET}/checkpoints/ohlc_aggregator"
+CHECKPOINT_LOCATION = "/tmp/spark-checkpoints/ohlc_aggregator"
 
 # Schema Kafka (aggTrade)
 schema = StructType([
@@ -60,8 +62,12 @@ def create_spark_session():
     ]
     return SparkSession.builder \
         .appName("BinanceRealTimeProcessor") \
+        .master("local[2]") \
         .config("spark.jars.packages", ",".join(packages)) \
         .config("spark.sql.shuffle.partitions", "2") \
+        .config("spark.driver.memory", "1536m") \
+        .config("spark.executor.memory", "512m") \
+        .config("spark.python.worker.reuse", "true") \
         .config("spark.mongodb.write.connection.uri", MONGO_URI) \
         .config("spark.mongodb.write.database", MONGO_DATABASE) \
         .config("spark.hadoop.fs.s3a.access.key", AWS_ACCESS_KEY) \
@@ -102,12 +108,15 @@ def process_stream():
     spark.sparkContext.setLogLevel("WARN")
     kafka_opts = get_kafka_options()
 
-    # Read from Kafka
+    # ----------------------------------------------------------------
+    # Đọc dữ liệu thô từ Kafka
+    # Dùng "latest" để chỉ xử lý data real-time, không load lại lịch sử
+    # ----------------------------------------------------------------
     raw_df = spark.readStream \
         .format("kafka") \
         .options(**kafka_opts) \
         .option("subscribe", KAFKA_RAW_TOPIC) \
-        .option("startingOffsets", "earliest") \
+        .option("startingOffsets", "latest") \
         .option("failOnDataLoss", "false") \
         .load()
 
@@ -120,11 +129,15 @@ def process_stream():
         .withColumn("month", month(col("event_time"))) \
         .withColumn("day", dayofmonth(col("event_time")))
 
-    watermarked_df = parsed_df.withWatermark("event_time", "5 seconds")
+    # ----------------------------------------------------------------
+    # Aggregation OHLC với TUMBLING WINDOW (thay vì sliding window)
+    # Sliding window (1m/2s) = 30 windows đồng thời → ngốn RAM
+    # Tumbling window (1m) = 1 window tại một thời điểm → nhẹ hơn nhiều
+    # ----------------------------------------------------------------
+    watermarked_df = parsed_df.withWatermark("event_time", "10 seconds")
 
-    # Aggregation
-    ohlc_sliding_df = watermarked_df \
-        .groupBy(col("symbol"), window(col("event_time"), "1 minute", "2 seconds")) \
+    ohlc_df = watermarked_df \
+        .groupBy(col("symbol"), window(col("event_time"), "1 minute")) \
         .agg(
             first("price").alias("open"),
             max("price").alias("high"),
@@ -136,56 +149,29 @@ def process_stream():
         .select(
             col("symbol"),
             col("window.start").alias("timestamp"),
+            col("window.end").alias("window_end"),
             col("open"), col("high"), col("low"), col("close"), col("volume"), col("vwap")
         )
 
-    def save_all(batch_df, batch_id):
-        if batch_df.isEmpty():
-            return
-        # Tối ưu: Lưu cache để không phải tính toán lại luồng cho mỗi lần ghi
-        batch_df.persist()
-        count = batch_df.count()
-        print(f"\n🚀 [START] Batch {batch_id} - Bắt đầu xử lý {count} bản ghi OHLC")
-        
-        # 1. Đo tốc độ ghi MongoDB Atlas
-        start_mongo = time.time()
-        try:
-            batch_df.write.format("mongodb") \
-                .mode("append") \
-                .option("database", MONGO_DATABASE) \
-                .option("collection", "live_ohlc_sliding") \
-                .save()
-            duration_mongo = time.time() - start_mongo
-            print(f"✅ [MONGO SINK] Ghi thành công trong {duration_mongo:.2f}s (Tốc độ: {count/duration_mongo if duration_mongo > 0 else count:.2f} rec/s)")
-        except Exception as e:
-            print(f"❌ [LỖI MONGO] Phải chăng quên cấu hình Allow 0.0.0.0/0 trên Atlas? Lỗi: {e}")
-            
-        # 2. Đo tốc độ ghi Kafka
-        start_kafka = time.time()
-        try:
-            batch_df.selectExpr("to_json(struct(*)) AS value") \
-                .write \
-                .format("kafka") \
-                .options(**kafka_opts) \
-                .option("topic", KAFKA_LIVE_OHLC_TOPIC) \
-                .save()
-            duration_kafka = time.time() - start_kafka
-            print(f"✅ [KAFKA SINK] Ghi thành công trong {duration_kafka:.2f}s (Tốc độ: {count/duration_kafka if duration_kafka > 0 else count:.2f} rec/s)")
-        except Exception as e:
-            print(f"❌ [LỖI KAFKA] Lỗi ghi topic: {e}")
-            
-        batch_df.unpersist()
-        print(f"🏁 [END] Hoàn thành Batch {batch_id}\n")
-
-    # 1. Query OHLC
-    ohlc_query = ohlc_sliding_df.writeStream \
-        .foreachBatch(save_all) \
-        .outputMode("update") \
-        .trigger(processingTime='2 seconds') \
-        .option("checkpointLocation", f"{CHECKPOINT_LOCATION}_ohlc") \
+    # ----------------------------------------------------------------
+    # SINK 1: OHLC → Kafka topic (native sink, KHÔNG dùng foreachBatch)
+    # append mode hoạt động tốt với tumbling window + watermark
+    # ----------------------------------------------------------------
+    ohlc_kafka_query = ohlc_df \
+        .selectExpr("to_json(struct(*)) AS value") \
+        .writeStream \
+        .format("kafka") \
+        .outputMode("append") \
+        .options(**kafka_opts) \
+        .option("topic", KAFKA_LIVE_OHLC_TOPIC) \
+        .option("checkpointLocation", f"{CHECKPOINT_LOCATION}_ohlc_kafka") \
+        .trigger(processingTime='5 seconds') \
         .start()
+    print("✅ [SINK 1] OHLC → Kafka: STARTED")
 
-    # 2. Query Ticks
+    # ----------------------------------------------------------------
+    # SINK 3: Live ticks → Kafka (native sink)
+    # ----------------------------------------------------------------
     ticks_query = parsed_df \
         .selectExpr("to_json(struct(*)) AS value") \
         .writeStream \
@@ -194,8 +180,11 @@ def process_stream():
         .option("topic", KAFKA_LIVE_TICKS_TOPIC) \
         .option("checkpointLocation", f"{CHECKPOINT_LOCATION}_ticks") \
         .start()
+    print("✅ [SINK 3] Ticks → Kafka: STARTED")
 
-    # 3. Query Whale
+    # ----------------------------------------------------------------
+    # SINK 4: Whale alerts → Kafka (native sink)
+    # ----------------------------------------------------------------
     whale_alerts_df = parsed_df \
         .withColumn("total_usd", col("price") * col("volume")) \
         .filter(col("total_usd") >= WHALE_THRESHOLD_USD)
@@ -208,8 +197,11 @@ def process_stream():
         .option("topic", KAFKA_WHALE_ALERTS_TOPIC) \
         .option("checkpointLocation", f"{CHECKPOINT_LOCATION}_whales") \
         .start()
+    print("✅ [SINK 4] Whale alerts → Kafka: STARTED")
 
-    # 4. Query S3
+    # ----------------------------------------------------------------
+    # SINK 5: Raw ticks → S3 (Parquet, native sink)
+    # ----------------------------------------------------------------
     raw_storage_query = parsed_df \
         .writeStream \
         .format("parquet") \
@@ -217,15 +209,12 @@ def process_stream():
         .option("path", f"s3a://{S3_BUCKET}/raw_ticks") \
         .option("checkpointLocation", f"{CHECKPOINT_LOCATION}_raw_storage") \
         .start()
+    print("✅ [SINK 5] Raw ticks → S3: STARTED")
 
-    # 5. Query Debug (In dữ liệu ra Console để kiểm tra)
-    debug_console_query = parsed_df \
-        .writeStream \
-        .format("console") \
-        .option("truncate", "false") \
-        .start()
-
+    print("\n🚀 Tất cả 5 streaming queries đã khởi động. Đang xử lý real-time...\n")
     spark.streams.awaitAnyTermination()
 
+
 if __name__ == "__main__":
-    process_stream()()
+    process_stream()
+

@@ -62,6 +62,14 @@ export class BinanceService implements OnModuleInit {
       console.error('[BinanceService] MongoDB connection/seeding error:', err);
     }
 
+    try {
+      console.log('Connecting to Kafka...');
+      await this.kafkaClient.connect();
+      console.log('Kafka connected successfully');
+    } catch (kafkaErr) {
+      console.error('Failed to connect to Kafka:', kafkaErr);
+    }
+
     this.initBinanceSocket();
   }
 
